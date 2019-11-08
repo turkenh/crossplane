@@ -1,3 +1,4 @@
+{{- if not .Values.onlyTypesAndRoles }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -79,3 +80,4 @@ spec:
               defaultMode: 420
               secretName: {{ .Values.tenantConfig.hostKubeconfigSecret | quote }}
         {{- end }}
+{{- end }}

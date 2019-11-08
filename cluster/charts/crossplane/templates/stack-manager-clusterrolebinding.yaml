@@ -1,3 +1,4 @@
+{{- if not .Values.skipTypesAndRoles }}
 # the stack manager ClusterRoleBinding is to the cluster-admin ClusterRole because it needs to
 # create arbitrary RBAC permissions for arbitrary stacks.  A service account cannot grant RBAC
 # permissions that it doesn't already have itself, so to support the arbitrary permissions needs of
@@ -22,3 +23,4 @@ subjects:
 - kind: ServiceAccount
   name: stack-manager
   namespace: {{ .Release.Namespace }}
+{{- end }}
