@@ -358,9 +358,8 @@ func (h *stackHandler) processDeployment(ctx context.Context) error {
 			},
 		})
 
-		for i, _ := range podSpec.Containers {
-			vms := podSpec.Containers[i].VolumeMounts
-			vms = append(vms, corev1.VolumeMount{
+		for i := range podSpec.Containers {
+			podSpec.Containers[i].VolumeMounts = append(podSpec.Containers[i].VolumeMounts, corev1.VolumeMount{
 				Name:      saSecretOnHost.Name,
 				ReadOnly:  true,
 				MountPath: "/var/run/secrets/kubernetes.io/serviceaccount",

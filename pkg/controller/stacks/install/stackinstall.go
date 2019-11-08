@@ -77,7 +77,7 @@ func (c *Controller) SetupWithManager(mgr ctrl.Manager) error {
 	controllerName, stackInstaller := c.StackInstallCreator()
 
 	kube := mgr.GetClient()
-	kClient := kubernetes.NewForConfigOrDie(mgr.GetConfig())
+	kubeClient := kubernetes.NewForConfigOrDie(mgr.GetConfig())
 	discoverer := &stacks.KubeExecutorInfoDiscoverer{Client: kube}
 
 	hostKube, hostClient, err := host.GetHostClients()
@@ -87,7 +87,7 @@ func (c *Controller) SetupWithManager(mgr ctrl.Manager) error {
 
 	r := &Reconciler{
 		kube:                   kube,
-		kubeclient:             kClient,
+		kubeclient:             kubeClient,
 		hostKube:               hostKube,
 		hostClient:             hostClient,
 		stackinator:            stackInstaller,

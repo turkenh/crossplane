@@ -111,12 +111,12 @@ func clusterInstallResource(rm ...resourceModifier) *v1alpha1.ClusterStackInstal
 
 // mock implementations
 type mockFactory struct {
-	MockNewHandler func(context.Context, v1alpha1.StackInstaller, client.Client, kubernetes.Interface, *stacks.ExecutorInfo) handler
+	MockNewHandler func(context.Context, v1alpha1.StackInstaller, client.Client, kubernetes.Interface, client.Client, kubernetes.Interface, *stacks.ExecutorInfo) handler
 }
 
 func (f *mockFactory) newHandler(ctx context.Context, i v1alpha1.StackInstaller,
-	kube client.Client, kubeclient kubernetes.Interface, ei *stacks.ExecutorInfo) handler {
-	return f.MockNewHandler(ctx, i, kube, kubeclient, ei)
+	kube client.Client, kubeclient kubernetes.Interface, hostKube client.Client, hostClient kubernetes.Interface, ei *stacks.ExecutorInfo) handler {
+	return f.MockNewHandler(ctx, i, kube, kubeclient, nil, nil, ei)
 }
 
 type mockHandler struct {
@@ -174,7 +174,7 @@ func TestReconcile(t *testing.T) {
 					},
 				},
 				factory: &mockFactory{
-					MockNewHandler: func(context.Context, v1alpha1.StackInstaller, client.Client, kubernetes.Interface, *stacks.ExecutorInfo) handler {
+					MockNewHandler: func(context.Context, v1alpha1.StackInstaller, client.Client, kubernetes.Interface, client.Client, kubernetes.Interface, *stacks.ExecutorInfo) handler {
 						return &mockHandler{
 							MockSync: func(context.Context) (reconcile.Result, error) {
 								return reconcile.Result{}, nil
@@ -202,7 +202,7 @@ func TestReconcile(t *testing.T) {
 					},
 				},
 				factory: &mockFactory{
-					MockNewHandler: func(context.Context, v1alpha1.StackInstaller, client.Client, kubernetes.Interface, *stacks.ExecutorInfo) handler {
+					MockNewHandler: func(context.Context, v1alpha1.StackInstaller, client.Client, kubernetes.Interface, client.Client, kubernetes.Interface, *stacks.ExecutorInfo) handler {
 						return &mockHandler{
 							MockSync: func(context.Context) (reconcile.Result, error) {
 								return reconcile.Result{}, nil
@@ -302,7 +302,7 @@ func TestHandlerFactory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.factory.newHandler(ctx, resource(), nil, nil, &stacks.ExecutorInfo{Image: stackPackageImage})
+			got := tt.factory.newHandler(ctx, resource(), nil, nil, nil, nil, &stacks.ExecutorInfo{Image: stackPackageImage})
 
 			diff := cmp.Diff(tt.want, got,
 				cmp.AllowUnexported(

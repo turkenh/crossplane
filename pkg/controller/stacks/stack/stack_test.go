@@ -110,11 +110,11 @@ func resource(rm ...resourceModifier) *v1alpha1.Stack {
 // mockFactory and mockHandler
 // ************************************************************************************************
 type mockFactory struct {
-	MockNewHandler func(context.Context, *v1alpha1.Stack, client.Client) handler
+	MockNewHandler func(context.Context, *v1alpha1.Stack, client.Client, client.Client) handler
 }
 
-func (f *mockFactory) newHandler(ctx context.Context, r *v1alpha1.Stack, c client.Client) handler {
-	return f.MockNewHandler(ctx, r, c)
+func (f *mockFactory) newHandler(ctx context.Context, r *v1alpha1.Stack, c client.Client, h client.Client) handler {
+	return f.MockNewHandler(ctx, r, c, nil)
 }
 
 type mockHandler struct {
@@ -209,7 +209,7 @@ func TestReconcile(t *testing.T) {
 					},
 				},
 				factory: &mockFactory{
-					MockNewHandler: func(context.Context, *v1alpha1.Stack, client.Client) handler {
+					MockNewHandler: func(context.Context, *v1alpha1.Stack, client.Client, client.Client) handler {
 						return &mockHandler{
 							MockSync: func(context.Context) (reconcile.Result, error) {
 								return reconcile.Result{}, nil
