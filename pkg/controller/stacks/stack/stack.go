@@ -263,6 +263,7 @@ func (h *stackHandler) processRBAC(ctx context.Context) error {
 	return errors.New("invalid permissionScope for stack")
 }
 
+//nolint:gocyclo
 func (h *stackHandler) processDeployment(ctx context.Context) error {
 	controllerDeployment := h.ext.Spec.Controller.Deployment
 	if controllerDeployment == nil {

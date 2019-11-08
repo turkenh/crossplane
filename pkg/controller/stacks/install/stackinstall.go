@@ -187,6 +187,7 @@ func (h *stackInstallHandler) sync(ctx context.Context) (reconcile.Result, error
 
 // create performs the operation of creating the associated Stack.  This function assumes
 // that the Stack does not yet exist, so the caller should confirm that before calling.
+//nolint:gocyclo
 func (h *stackInstallHandler) create(ctx context.Context) (reconcile.Result, error) {
 	h.ext.SetConditions(runtimev1alpha1.Creating())
 	jobRef := h.ext.InstallJob()
