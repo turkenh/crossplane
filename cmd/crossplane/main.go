@@ -35,6 +35,7 @@ import (
 	"github.com/crossplaneio/crossplane/pkg/controller/workload"
 	"github.com/crossplaneio/crossplane/pkg/stacks"
 	"github.com/crossplaneio/crossplane/pkg/stacks/walker"
+	// _ "k8s.io/client-go/plugin/pkg/client/auth"
 )
 
 func main() {

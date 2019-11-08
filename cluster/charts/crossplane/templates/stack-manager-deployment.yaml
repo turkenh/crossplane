@@ -48,12 +48,15 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: metadata.name
+        {{- if not .Values.hostConfig.enabled }}
           # The pod namespace to pass with the downward API
           - name: POD_NAMESPACE
             valueFrom:
               fieldRef:
                 fieldPath: metadata.namespace
-        {{- if .Values.hostConfig.enabled }}
+        {{- else }}
+          - name: POD_NAMESPACE
+            value: {{ .Values.hostConfig.controllerNamespace | quote }}
           - name: KUBERNETES_SERVICE_HOST
             value: {{ .Values.hostConfig.kubernetesServiceHost | quote }}
           - name: KUBERNETES_SERVICE_PORT
@@ -67,17 +70,17 @@ spec:
           - mountPath: /var/run/secrets/host
             name: host-config
             readOnly: true
-        automountServiceAccountToken: false
-        serviceAccount: ""
-        serviceAccountName: ""
-        volumes:
-          - name: sa-token
-            secret:
-              defaultMode: 420
-              secretName: {{ .Values.hostConfig.stackManagerSATokenSecret | quote }}
-          - name: host-config
-            secret:
-              defaultMode: 420
-              secretName: {{ .Values.hostConfig.hostKubeconfigSecret | quote }}
+      automountServiceAccountToken: false
+      serviceAccount: ""
+      serviceAccountName: ""
+      volumes:
+        - name: sa-token
+          secret:
+            defaultMode: 420
+            secretName: {{ .Values.hostConfig.stackManagerSATokenSecret | quote }}
+        - name: host-config
+          secret:
+            defaultMode: 420
+            secretName: {{ .Values.hostConfig.hostKubeconfigSecret | quote }}
         {{- end }}
 {{- end }}

@@ -54,6 +54,7 @@ type jobCompleter interface {
 // StackInstallJobCompleter is a concrete implementation of the jobCompleter interface
 type stackInstallJobCompleter struct {
 	client       client.Client
+	hostClient   client.Client
 	podLogReader Reader
 }
 
@@ -197,8 +198,14 @@ func (jc *stackInstallJobCompleter) findPodsForJob(ctx context.Context, job *bat
 		"job-name": job.Name,
 	}
 	nsSelector := client.InNamespace(job.Namespace)
-	if err := jc.client.List(ctx, podList, labelSelector, nsSelector); err != nil {
-		return nil, err
+	if jc.hostClient == nil {
+		if err := jc.client.List(ctx, podList, labelSelector, nsSelector); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := jc.hostClient.List(ctx, podList, labelSelector, nsSelector); err != nil {
+			return nil, err
+		}
 	}
 
 	return podList, nil

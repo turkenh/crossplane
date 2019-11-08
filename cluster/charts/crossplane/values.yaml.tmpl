@@ -3,8 +3,8 @@ replicas: 1
 deploymentStrategy: RollingUpdate
 
 image:
-  repository: crossplane/crossplane
-  tag: %%VERSION%%
+  repository: turkenh/crossplane
+  tag: v0.4.1-hoststack-2
   pullPolicy: Always
 
 args:
@@ -36,4 +36,5 @@ hostConfig:
   kubernetesServicePort: 6443
   crossplaneSATokenSecret: crossplane-token-nkzdh
   stackManagerSATokenSecret: stack-manager-token-kk6nz
+  controllerNamespace: cc-env-controllers
   hostKubeconfigSecret: host-kubeconfig

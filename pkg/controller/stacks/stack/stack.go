@@ -19,6 +19,7 @@ package stack
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/crossplaneio/crossplane/pkg/controller/stacks/host"
@@ -311,6 +312,7 @@ func (h *stackHandler) processDeployment(ctx context.Context) error {
 			return errors.New("stack controller service account token secret is not generated yet")
 		}
 		saSecretRef := sa.Secrets[0]
+		saSecretRef.Namespace = h.ext.Namespace
 		saSecret := corev1.Secret{}
 
 		err = h.kube.Get(ctx, meta.NamespacedNameOf(&saSecretRef), &saSecret)
@@ -319,10 +321,14 @@ func (h *stackHandler) processDeployment(ctx context.Context) error {
 			return errors.Wrap(err, "failed to get  stack controller service account token secret")
 		}
 		// Create the secret on host
-		saSecretOnHost := saSecret.DeepCopy()
 		saSecretNameOnHost := fmt.Sprintf("%s-%s", saSecret.Namespace, saSecret.Name)
-		saSecretOnHost.Name = saSecretNameOnHost
-		saSecretOnHost.Namespace = ""
+		saSecretOnHost := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      saSecretNameOnHost,
+				Namespace: os.Getenv("POD_NAMESPACE"), // "crossplane-cluster-100"
+			},
+			Data: saSecret.Data,
+		}
 
 		err = h.hostKube.Create(ctx, saSecretOnHost)
 		if err != nil && !kerrors.IsAlreadyExists(err) {
@@ -334,7 +340,8 @@ func (h *stackHandler) processDeployment(ctx context.Context) error {
 		d.Name = nameOnHost
 		// Unset namespace, so that default namespace in HOST_KUBECONFIG could be used which will be set as tenant
 		// Kubernetes namespace on host.
-		d.Namespace = ""
+		d.Namespace = os.Getenv("POD_NAMESPACE")
+		//d.Namespace = "crossplane-cluster-100"
 
 		// Jobs is running on host Kubernetes, however owner, which is StackInstall or ClusterStackInstall, lives in
 		// tenant Kubernetes. So no way to use owner references. We'll need to handle job cleanups during uninstalls
@@ -360,6 +367,21 @@ func (h *stackHandler) processDeployment(ctx context.Context) error {
 		})
 
 		for i := range podSpec.Containers {
+			podSpec.Containers[i].Env = append(podSpec.Containers[i].Env,
+				corev1.EnvVar{
+					Name:  "KUBERNETES_SERVICE_HOST",
+					Value: os.Getenv("KUBERNETES_SERVICE_HOST"),
+				}, corev1.EnvVar{
+					Name:  "KUBERNETES_SERVICE_PORT",
+					Value: os.Getenv("KUBERNETES_SERVICE_PORT"),
+				}, corev1.EnvVar{
+					// When POD_NAMESPACE is not set as stackinstalls namespace here, it is set as host namespace where actual
+					// pod running. This result stack controller to fails with forbidden, since their sa only allows to watch
+					// the namespace where stack is installed
+					Name:  "POD_NAMESPACE",
+					Value: h.ext.Namespace,
+				})
+
 			podSpec.Containers[i].VolumeMounts = append(podSpec.Containers[i].VolumeMounts, corev1.VolumeMount{
 				Name:      saSecretOnHost.Name,
 				ReadOnly:  true,

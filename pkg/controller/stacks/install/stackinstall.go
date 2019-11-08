@@ -19,6 +19,7 @@ package install
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -78,12 +79,16 @@ func (c *Controller) SetupWithManager(mgr ctrl.Manager) error {
 
 	kube := mgr.GetClient()
 	kubeClient := kubernetes.NewForConfigOrDie(mgr.GetConfig())
-	discoverer := &stacks.KubeExecutorInfoDiscoverer{Client: kube}
 
 	hostKube, hostClient, err := host.GetHostClients()
 	if err != nil {
 		return err
 	}
+	cl := kube
+	if hostKube != nil {
+		cl = hostKube
+	}
+	discoverer := &stacks.KubeExecutorInfoDiscoverer{Client: cl}
 
 	r := &Reconciler{
 		kube:                   kube,
@@ -154,19 +159,19 @@ func (f *handlerFactory) newHandler(ctx context.Context, ext v1alpha1.StackInsta
 	kube client.Client, kubeclient kubernetes.Interface,
 	hostKube client.Client, hostClient kubernetes.Interface, ei *stacks.ExecutorInfo) handler {
 
-	jk := hostKube
-	jc := hostClient
-	if hostKube != nil {
-		jk = hostKube
+	jc := kubeclient
+	if hostClient != nil {
 		jc = hostClient
 	}
 
 	return &stackInstallHandler{
 		ext:          ext,
 		kube:         kube,
+		hostKube:     hostKube,
 		executorInfo: ei,
 		jobCompleter: &stackInstallJobCompleter{
-			client: jk,
+			client:     kube,
+			hostClient: hostKube,
 			podLogReader: &K8sReader{
 				Client: jc,
 			},
@@ -206,12 +211,17 @@ func (h *stackInstallHandler) create(ctx context.Context) (reconcile.Result, err
 			job.Name = nameOnHost
 			// Unset namespace, so that default namespace in HOST_KUBECONFIG could be used which will be set as tenant
 			// Kubernetes namespace on host.
-			job.Namespace = ""
+			job.Namespace = os.Getenv("POD_NAMESPACE")
+			//job.Namespace = "crossplane-cluster-100"
 
 			// Jobs is running on host Kubernetes, however owner, which is StackInstall or ClusterStackInstall, lives in
 			// tenant Kubernetes. So no way to use owner references. We'll need to handle job cleanups during uninstalls
 			// separately.
 			job.OwnerReferences = nil
+
+			if err := h.hostKube.Create(ctx, job); err != nil {
+				return fail(ctx, h.kube, h.ext, err)
+			}
 		}
 		jobRef = &corev1.ObjectReference{
 			Name:      job.Name,
