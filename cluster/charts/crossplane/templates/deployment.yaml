@@ -22,7 +22,7 @@ spec:
         app: {{ template "name" . }}
         release: {{ .Release.Name }}
     spec:
-      {{- if not .Values.tenantConfig }}
+      {{- if not .Values.hostConfig.enabled }}
       serviceAccountName: {{ template "name" . }}
       {{- end }}
       containers:
@@ -40,12 +40,12 @@ spec:
           requests:
             cpu: 100m
             memory: 256Mi
-      {{- if .Values.tenantConfig }}
+      {{- if .Values.hostConfig.enabled }}
         env:
           - name: KUBERNETES_SERVICE_HOST
-            value: {{ .Values.tenantConfig.kubernetesServiceHost | quote }}
+            value: {{ .Values.hostConfig.kubernetesServiceHost | quote }}
           - name: KUBERNETES_SERVICE_PORT
-            value: {{ .Values.tenantConfig.kubernetesServicePort | quote }}
+            value: {{ .Values.hostConfig.kubernetesServicePort | quote }}
         volumeMounts:
           - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
             name: sa-token
@@ -57,6 +57,6 @@ spec:
         - name: sa-token
           secret:
             defaultMode: 420
-            secretName: {{ .Values.tenantConfig.crossplaneSATokenSecret | quote }}
+            secretName: {{ .Values.hostConfig.crossplaneSATokenSecret | quote }}
       {{- end }}
 {{- end }}

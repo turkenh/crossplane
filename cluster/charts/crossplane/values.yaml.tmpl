@@ -26,3 +26,14 @@ clusterStacks:
   rook:
     version: master
     deploy: false
+
+###
+onlyTypesAndRoles: false
+skipTypesAndRoles: false
+hostConfig:
+  enabled: false
+  kubernetesServiceHost: tenant-kubernetes
+  kubernetesServicePort: 6443
+  crossplaneSATokenSecret: crossplane-token-nkzdh
+  stackManagerSATokenSecret: stack-manager-token-kk6nz
+  hostKubeconfigSecret: host-kubeconfig
