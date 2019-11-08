@@ -19,12 +19,11 @@ package install
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
 
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"github.com/crossplaneio/crossplane/pkg/controller/stacks/host"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -40,7 +39,7 @@ import (
 	"github.com/crossplaneio/crossplane-runtime/pkg/logging"
 	"github.com/crossplaneio/crossplane-runtime/pkg/meta"
 	"github.com/crossplaneio/crossplane/apis/stacks/v1alpha1"
-	stacks "github.com/crossplaneio/crossplane/pkg/stacks"
+	"github.com/crossplaneio/crossplane/pkg/stacks"
 )
 
 const (
@@ -81,27 +80,9 @@ func (c *Controller) SetupWithManager(mgr ctrl.Manager) error {
 	kClient := kubernetes.NewForConfigOrDie(mgr.GetConfig())
 	discoverer := &stacks.KubeExecutorInfoDiscoverer{Client: kube}
 
-	hostKubeConfig := os.Getenv("HOST_KUBECONFIG")
-	var hostKube client.Client
-	var hostClient kubernetes.Interface
-	if hostKubeConfig != "" {
-		err := os.Setenv("KUBECONFIG", hostKubeConfig)
-		if err != nil {
-			return errors.Wrap(err, "failed to set KUBECONFIG env var with HOST_KUBECONFIG")
-		}
-		cfg, err := config.GetConfig()
-		if err != nil {
-			return errors.Wrap(err, "failed to initialize config with HOST_KUBECONFIG")
-		}
-		hostKube, err = client.New(cfg, client.Options{})
-		if err != nil {
-			return errors.Wrap(err, "failed to initialize client with HOST_KUBECONFIG")
-		}
-		hostClient = kubernetes.NewForConfigOrDie(cfg)
-		err = os.Unsetenv("KUBECONFIG")
-		if err != nil {
-			return errors.Wrap(err, "failed to unset KUBECONFIG env var after configuring with HOST_KUBECONFIG")
-		}
+	hostKube, hostClient, err := host.GetHostClients()
+	if err != nil {
+		return err
 	}
 
 	r := &Reconciler{

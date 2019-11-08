@@ -18,7 +18,10 @@ package stack
 
 import (
 	"context"
+	"fmt"
 	"time"
+
+	"github.com/crossplaneio/crossplane/pkg/controller/stacks/host"
 
 	"github.com/pkg/errors"
 	apps "k8s.io/api/apps/v1"
@@ -54,7 +57,8 @@ var (
 
 // Reconciler reconciles a Instance object
 type Reconciler struct {
-	kube client.Client
+	kube     client.Client
+	hostKube client.Client
 	factory
 }
 
@@ -65,9 +69,15 @@ type Controller struct{}
 // SetupWithManager creates a new Controller and adds it to the Manager with default RBAC. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
 func (c *Controller) SetupWithManager(mgr ctrl.Manager) error {
+	hostKube, _, err := host.GetHostClients()
+	if err != nil {
+		return err
+	}
+
 	r := &Reconciler{
-		kube:    mgr.GetClient(),
-		factory: &stackHandlerFactory{},
+		kube:     mgr.GetClient(),
+		hostKube: hostKube,
+		factory:  &stackHandlerFactory{},
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -93,7 +103,7 @@ func (r *Reconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) 
 		return reconcile.Result{}, err
 	}
 
-	handler := r.factory.newHandler(ctx, i, r.kube)
+	handler := r.factory.newHandler(ctx, i, r.kube, r.hostKube)
 
 	return handler.sync(ctx)
 }
@@ -105,20 +115,22 @@ type handler interface {
 }
 
 type stackHandler struct {
-	kube client.Client
-	ext  *v1alpha1.Stack
+	kube     client.Client
+	hostKube client.Client
+	ext      *v1alpha1.Stack
 }
 
 type factory interface {
-	newHandler(context.Context, *v1alpha1.Stack, client.Client) handler
+	newHandler(context.Context, *v1alpha1.Stack, client.Client, client.Client) handler
 }
 
 type stackHandlerFactory struct{}
 
-func (f *stackHandlerFactory) newHandler(ctx context.Context, ext *v1alpha1.Stack, kube client.Client) handler {
+func (f *stackHandlerFactory) newHandler(ctx context.Context, ext *v1alpha1.Stack, kube client.Client, hostKube client.Client) handler {
 	return &stackHandler{
-		kube: kube,
-		ext:  ext,
+		kube:     kube,
+		hostKube: hostKube,
+		ext:      ext,
 	}
 }
 
@@ -276,8 +288,88 @@ func (h *stackHandler) processDeployment(ctx context.Context) error {
 		Spec: deploymentSpec,
 	}
 
-	if err := h.kube.Create(ctx, d); err != nil && !kerrors.IsAlreadyExists(err) {
-		return errors.Wrap(err, "failed to create deployment")
+	if h.hostKube == nil {
+		if err := h.kube.Create(ctx, d); err != nil && !kerrors.IsAlreadyExists(err) {
+			return errors.Wrap(err, "failed to create deployment")
+		}
+	} else {
+		// We need to copy SA token secret from host to tenant
+		// Get the secret
+		sa := corev1.ServiceAccount{}
+		err := h.kube.Get(ctx, client.ObjectKey{
+			Namespace: d.Namespace,
+			Name:      d.Spec.Template.Spec.ServiceAccountName,
+		}, &sa)
+		if kerrors.IsNotFound(err) {
+			return errors.Wrap(err, "stack controller service account is not created yet")
+		}
+		if err != nil {
+			return errors.Wrap(err, "failed to get stack controller service account")
+		}
+		if len(sa.Secrets) < 1 {
+			return errors.New("stack controller service account token secret is not generated yet")
+		}
+		saSecretRef := sa.Secrets[0]
+		saSecret := corev1.Secret{}
+
+		err = h.kube.Get(ctx, meta.NamespacedNameOf(&saSecretRef), &saSecret)
+
+		if err != nil {
+			return errors.Wrap(err, "failed to get  stack controller service account token secret")
+		}
+		// Create the secret on host
+		saSecretOnHost := saSecret.DeepCopy()
+		saSecretNameOnHost := fmt.Sprintf("%s-%s", saSecret.Namespace, saSecret.Name)
+		saSecretOnHost.Name = saSecretNameOnHost
+		saSecretOnHost.Namespace = ""
+
+		err = h.hostKube.Create(ctx, saSecretOnHost)
+		if err != nil && !kerrors.IsAlreadyExists(err) {
+			return errors.Wrap(err, "failed to create sa token secret on host")
+		}
+
+		// We need to map all install jobs on tenant Kubernetes into a single namespace on host cluster.
+		nameOnHost := fmt.Sprintf("%s-%s", d.Namespace, d.Name)
+		d.Name = nameOnHost
+		// Unset namespace, so that default namespace in HOST_KUBECONFIG could be used which will be set as tenant
+		// Kubernetes namespace on host.
+		d.Namespace = ""
+
+		// Jobs is running on host Kubernetes, however owner, which is StackInstall or ClusterStackInstall, lives in
+		// tenant Kubernetes. So no way to use owner references. We'll need to handle job cleanups during uninstalls
+		// separately.
+		d.OwnerReferences = nil
+
+		// Opt out service account token automaount
+		disable := false
+		podSpec := &d.Spec.Template.Spec
+		podSpec.AutomountServiceAccountToken = &disable
+		podSpec.ServiceAccountName = ""
+		podSpec.DeprecatedServiceAccount = ""
+
+		m := int32(420)
+		podSpec.Volumes = append(podSpec.Volumes, corev1.Volume{
+			Name: saSecretOnHost.Name,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName:  saSecretOnHost.Name,
+					DefaultMode: &m,
+				},
+			},
+		})
+
+		for i, _ := range podSpec.Containers {
+			vms := podSpec.Containers[i].VolumeMounts
+			vms = append(vms, corev1.VolumeMount{
+				Name:      saSecretOnHost.Name,
+				ReadOnly:  true,
+				MountPath: "/var/run/secrets/kubernetes.io/serviceaccount",
+			})
+		}
+
+		if err := h.hostKube.Create(ctx, d); err != nil && !kerrors.IsAlreadyExists(err) {
+			return errors.Wrap(err, "failed to create deployment on host")
+		}
 	}
 
 	// save a reference to the stack's controller
