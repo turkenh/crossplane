@@ -21,7 +21,9 @@ spec:
         app: {{ template "name" . }}-stack-manager
         release: {{ .Release.Name }}
     spec:
+      {{- if not .Values.tenantConfig }}
       serviceAccountName: stack-manager
+      {{- end }}
       containers:
       - image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
         args:
@@ -32,17 +34,6 @@ spec:
         {{- end }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         name: {{ .Chart.Name }}
-        env:
-        # The pod name to pass with the downward API
-        - name: POD_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.name
-        # The pod namespace to pass with the downward API
-        - name: POD_NAMESPACE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
         resources:
           limits:
             cpu: 100m
@@ -50,3 +41,41 @@ spec:
           requests:
             cpu: 100m
             memory: 256Mi
+        env:
+          # The pod name to pass with the downward API
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          # The pod namespace to pass with the downward API
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+        {{- if .Values.tenantConfig }}
+          - name: KUBERNETES_SERVICE_HOST
+            value: {{ .Values.tenantConfig.kubernetesServiceHost | quote }}
+          - name: KUBERNETES_SERVICE_PORT
+            value: {{ .Values.tenantConfig.kubernetesServicePort | quote }}
+          - name: HOST_KUBECONFIG
+            value: /var/run/secrets/host/config
+        volumeMounts:
+          - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+            name: sa-token
+            readOnly: true
+          - mountPath: /var/run/secrets/host
+            name: host-config
+            readOnly: true
+        automountServiceAccountToken: false
+        serviceAccount: ""
+        serviceAccountName: ""
+        volumes:
+          - name: sa-token
+            secret:
+              defaultMode: 420
+              secretName: {{ .Values.tenantConfig.stackManagerSATokenSecret | quote }}
+          - name: host-config
+            secret:
+              defaultMode: 420
+              secretName: {{ .Values.tenantConfig.hostKubeconfigSecret | quote }}
+        {{- end }}

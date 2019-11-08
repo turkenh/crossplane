@@ -21,7 +21,9 @@ spec:
         app: {{ template "name" . }}
         release: {{ .Release.Name }}
     spec:
+      {{- if not .Values.tenantConfig }}
       serviceAccountName: {{ template "name" . }}
+      {{- end }}
       containers:
       - image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
         args:
@@ -37,3 +39,22 @@ spec:
           requests:
             cpu: 100m
             memory: 256Mi
+      {{- if .Values.tenantConfig }}
+        env:
+          - name: KUBERNETES_SERVICE_HOST
+            value: {{ .Values.tenantConfig.kubernetesServiceHost | quote }}
+          - name: KUBERNETES_SERVICE_PORT
+            value: {{ .Values.tenantConfig.kubernetesServicePort | quote }}
+        volumeMounts:
+          - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+            name: sa-token
+            readOnly: true
+      automountServiceAccountToken: false
+      serviceAccount: ""
+      serviceAccountName: ""
+      volumes:
+        - name: sa-token
+          secret:
+            defaultMode: 420
+            secretName: {{ .Values.tenantConfig.crossplaneSATokenSecret | quote }}
+      {{- end }}
