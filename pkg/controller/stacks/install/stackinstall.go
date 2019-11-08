@@ -19,9 +19,12 @@ package install
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -56,6 +59,8 @@ type Reconciler struct {
 	sync.Mutex
 	kube        client.Client
 	kubeclient  kubernetes.Interface
+	hostKube    client.Client
+	hostClient  kubernetes.Interface
 	stackinator func() v1alpha1.StackInstaller
 	factory
 	executorInfoDiscoverer stacks.ExecutorInfoDiscoverer
@@ -73,12 +78,37 @@ func (c *Controller) SetupWithManager(mgr ctrl.Manager) error {
 	controllerName, stackInstaller := c.StackInstallCreator()
 
 	kube := mgr.GetClient()
-	client := kubernetes.NewForConfigOrDie(mgr.GetConfig())
+	kClient := kubernetes.NewForConfigOrDie(mgr.GetConfig())
 	discoverer := &stacks.KubeExecutorInfoDiscoverer{Client: kube}
+
+	hostKubeConfig := os.Getenv("HOST_KUBECONFIG")
+	var hostKube client.Client
+	var hostClient kubernetes.Interface
+	if hostKubeConfig != "" {
+		err := os.Setenv("KUBECONFIG", hostKubeConfig)
+		if err != nil {
+			return errors.Wrap(err, "failed to set KUBECONFIG env var with HOST_KUBECONFIG")
+		}
+		cfg, err := config.GetConfig()
+		if err != nil {
+			return errors.Wrap(err, "failed to initialize config with HOST_KUBECONFIG")
+		}
+		hostKube, err = client.New(cfg, client.Options{})
+		if err != nil {
+			return errors.Wrap(err, "failed to initialize client with HOST_KUBECONFIG")
+		}
+		hostClient = kubernetes.NewForConfigOrDie(cfg)
+		err = os.Unsetenv("KUBECONFIG")
+		if err != nil {
+			return errors.Wrap(err, "failed to unset KUBECONFIG env var after configuring with HOST_KUBECONFIG")
+		}
+	}
 
 	r := &Reconciler{
 		kube:                   kube,
-		kubeclient:             client,
+		kubeclient:             kClient,
+		hostKube:               hostKube,
+		hostClient:             hostClient,
 		stackinator:            stackInstaller,
 		factory:                &handlerFactory{},
 		executorInfoDiscoverer: discoverer,
@@ -111,7 +141,7 @@ func (r *Reconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) 
 		return fail(ctx, r.kube, stackInstaller, err)
 	}
 
-	handler := r.factory.newHandler(ctx, stackInstaller, r.kube, r.kubeclient, executorinfo)
+	handler := r.factory.newHandler(ctx, stackInstaller, r.kube, r.kubeclient, r.hostKube, r.hostClient, executorinfo)
 
 	return handler.sync(ctx)
 }
@@ -126,6 +156,7 @@ type handler interface {
 // stackInstallHandler is a concrete implementation of the handler interface
 type stackInstallHandler struct {
 	kube         client.Client
+	hostKube     client.Client
 	jobCompleter jobCompleter
 	executorInfo *stacks.ExecutorInfo
 	ext          v1alpha1.StackInstaller
@@ -133,22 +164,30 @@ type stackInstallHandler struct {
 
 // factory is an interface for creating new handlers
 type factory interface {
-	newHandler(context.Context, v1alpha1.StackInstaller, client.Client, kubernetes.Interface, *stacks.ExecutorInfo) handler
+	newHandler(context.Context, v1alpha1.StackInstaller, client.Client, kubernetes.Interface, client.Client, kubernetes.Interface, *stacks.ExecutorInfo) handler
 }
 
 type handlerFactory struct{}
 
 func (f *handlerFactory) newHandler(ctx context.Context, ext v1alpha1.StackInstaller,
-	kube client.Client, kubeclient kubernetes.Interface, ei *stacks.ExecutorInfo) handler {
+	kube client.Client, kubeclient kubernetes.Interface,
+	hostKube client.Client, hostClient kubernetes.Interface, ei *stacks.ExecutorInfo) handler {
+
+	jk := hostKube
+	jc := hostClient
+	if hostKube != nil {
+		jk = hostKube
+		jc = hostClient
+	}
 
 	return &stackInstallHandler{
 		ext:          ext,
 		kube:         kube,
 		executorInfo: ei,
 		jobCompleter: &stackInstallJobCompleter{
-			client: kube,
+			client: jk,
 			podLogReader: &K8sReader{
-				Client: kubeclient,
+				Client: jc,
 			},
 		},
 	}
@@ -174,10 +213,24 @@ func (h *stackInstallHandler) create(ctx context.Context) (reconcile.Result, err
 	if jobRef == nil {
 		// there is no install job created yet, create it now
 		job := createInstallJob(h.ext, h.executorInfo)
-		if err := h.kube.Create(ctx, job); err != nil {
-			return fail(ctx, h.kube, h.ext, err)
-		}
 
+		if h.hostKube == nil {
+			if err := h.kube.Create(ctx, job); err != nil {
+				return fail(ctx, h.kube, h.ext, err)
+			}
+		} else {
+			// We need to map all install jobs on tenant Kubernetes into a single namespace on host cluster.
+			nameOnHost := fmt.Sprintf("%s-%s", job.Namespace, job.Name)
+			job.Name = nameOnHost
+			// Unset namespace, so that default namespace in HOST_KUBECONFIG could be used which will be set as tenant
+			// Kubernetes namespace on host.
+			job.Namespace = ""
+
+			// Jobs is running on host Kubernetes, however owner, which is StackInstall or ClusterStackInstall, lives in
+			// tenant Kubernetes. So no way to use owner references. We'll need to handle job cleanups during uninstalls
+			// separately.
+			job.OwnerReferences = nil
+		}
 		jobRef = &corev1.ObjectReference{
 			Name:      job.Name,
 			Namespace: job.Namespace,
@@ -193,8 +246,14 @@ func (h *stackInstallHandler) create(ctx context.Context) (reconcile.Result, err
 
 	// the install job already exists, let's check its status and completion
 	job := &batchv1.Job{}
-	if err := h.kube.Get(ctx, meta.NamespacedNameOf(jobRef), job); err != nil {
-		return fail(ctx, h.kube, h.ext, err)
+	if h.hostKube == nil {
+		if err := h.kube.Get(ctx, meta.NamespacedNameOf(jobRef), job); err != nil {
+			return fail(ctx, h.kube, h.ext, err)
+		}
+	} else {
+		if err := h.hostKube.Get(ctx, meta.NamespacedNameOf(jobRef), job); err != nil {
+			return fail(ctx, h.kube, h.ext, err)
+		}
 	}
 
 	log.V(logging.Debug).Info(
