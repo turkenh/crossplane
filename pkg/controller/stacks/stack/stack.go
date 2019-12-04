@@ -325,7 +325,7 @@ func (h *stackHandler) processDeployment(ctx context.Context) error {
 		saSecretOnHost := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      saSecretNameOnHost,
-				Namespace: os.Getenv("POD_NAMESPACE"), // "crossplane-cluster-100"
+				Namespace: os.Getenv("CONTROLLER_NAMESPACE"), // "crossplane-cluster-100"
 			},
 			Data: saSecret.Data,
 		}
@@ -340,7 +340,7 @@ func (h *stackHandler) processDeployment(ctx context.Context) error {
 		d.Name = nameOnHost
 		// Unset namespace, so that default namespace in HOST_KUBECONFIG could be used which will be set as tenant
 		// Kubernetes namespace on host.
-		d.Namespace = os.Getenv("POD_NAMESPACE")
+		d.Namespace = os.Getenv("CONTROLLER_NAMESPACE")
 		//d.Namespace = "crossplane-cluster-100"
 
 		// Jobs is running on host Kubernetes, however owner, which is StackInstall or ClusterStackInstall, lives in

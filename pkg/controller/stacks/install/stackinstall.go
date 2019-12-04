@@ -211,7 +211,7 @@ func (h *stackInstallHandler) create(ctx context.Context) (reconcile.Result, err
 			job.Name = nameOnHost
 			// Unset namespace, so that default namespace in HOST_KUBECONFIG could be used which will be set as tenant
 			// Kubernetes namespace on host.
-			job.Namespace = os.Getenv("POD_NAMESPACE")
+			job.Namespace = os.Getenv("CONTROLLER_NAMESPACE")
 			//job.Namespace = "crossplane-cluster-100"
 
 			// Jobs is running on host Kubernetes, however owner, which is StackInstall or ClusterStackInstall, lives in
