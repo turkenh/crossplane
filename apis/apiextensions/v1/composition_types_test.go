@@ -105,7 +105,7 @@ func TestPatchTypeReplacement(t *testing.T) {
 						},
 					},
 				}},
-				err: errors.Errorf(errUndefinedPatchSet, "patch-set-1"),
+				err: errors.Errorf(errFmtUndefinedPatchSet, "patch-set-1"),
 			},
 		},
 		"DefinedPatchSets": {
@@ -505,7 +505,7 @@ func TestPatchApply(t *testing.T) {
 				cd: &fake.Composed{ObjectMeta: metav1.ObjectMeta{Name: "cd"}},
 			},
 			want: want{
-				err: errors.Errorf(errRequiredField, "FromFieldPath", PatchTypeFromCompositeFieldPath),
+				err: errors.Errorf(errFmtRequiredField, "FromFieldPath", PatchTypeFromCompositeFieldPath),
 			},
 		},
 		"InvalidPatchType": {
@@ -520,7 +520,7 @@ func TestPatchApply(t *testing.T) {
 				cd: &fake.Composed{ObjectMeta: metav1.ObjectMeta{Name: "cd"}},
 			},
 			want: want{
-				err: errors.Errorf(errInvalidPatchType, "invalid-patchtype"),
+				err: errors.Errorf(errFmtInvalidPatchType, "invalid-patchtype"),
 			},
 		},
 		"ValidCompositeFieldPathPatch": {
