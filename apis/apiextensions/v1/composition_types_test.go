@@ -288,7 +288,7 @@ func TestMapResolve(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			got, err := (&MapTransform{Pairs: tc.m}).Resolve([]interface{}{tc.i})
+			got, err := (&MapTransform{Pairs: tc.m}).Resolve(tc.i)
 
 			if diff := cmp.Diff(tc.want.o, got); diff != "" {
 				t.Errorf("Resolve(b): -want, +got:\n%s", diff)
@@ -354,7 +354,7 @@ func TestMathResolve(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			got, err := (&MathTransform{Multiply: tc.multiplier}).Resolve([]interface{}{tc.i})
+			got, err := (&MathTransform{Multiply: tc.multiplier}).Resolve(tc.i)
 
 			if diff := cmp.Diff(tc.want.o, got); diff != "" {
 				t.Errorf("Resolve(b): -want, +got:\n%s", diff)
@@ -370,7 +370,7 @@ func TestStringResolve(t *testing.T) {
 
 	type args struct {
 		fmts string
-		i    interface{}
+		i    []interface{}
 	}
 	type want struct {
 		o   []interface{}
@@ -378,37 +378,68 @@ func TestStringResolve(t *testing.T) {
 	}
 
 	cases := map[string]struct {
+		reason string
 		args
 		want
 	}{
 		"FmtString": {
+			reason: "Should format a single input string into a single output string",
 			args: args{
 				fmts: "verycool%s",
-				i:    "thing",
+				i:    []interface{}{"thing"},
 			},
 			want: want{
 				o: []interface{}{"verycoolthing"},
 			},
 		},
 		"FmtInteger": {
+			reason: "Should format a single input integer into a single output string",
 			args: args{
 				fmts: "the largest %d",
-				i:    8,
+				i:    []interface{}{8},
 			},
 			want: want{
 				o: []interface{}{"the largest 8"},
 			},
 		},
+		"FmtManyStringsToString": {
+			reason: "Should format many string input values to a single output string",
+			args: args{
+				i: []interface{}{
+					"one-value",
+					"two-value",
+				},
+				fmts: "%s TEST %s",
+			},
+			want: want{
+				o: []interface{}{"one-value TEST two-value"},
+			},
+		},
+		"FmtManyInputTypesToStringFormat": {
+			reason: "Should format many input value types to a single output string",
+			args: args{
+				i: []interface{}{
+					"one-value",
+					1,
+					3.14159,
+					true,
+				},
+				fmts: "%s TEST %d PI %.3f %t",
+			},
+			want: want{
+				o: []interface{}{"one-value TEST 1 PI 3.142 true"},
+			},
+		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			got, err := (&StringTransform{Format: tc.fmts}).Resolve([]interface{}{tc.i})
+			got, err := (&StringTransform{Format: tc.fmts}).Resolve(tc.i...)
 
 			if diff := cmp.Diff(tc.want.o, got); diff != "" {
-				t.Errorf("Resolve(b): -want, +got:\n%s", diff)
+				t.Errorf("\n%sResolve(b): -want, +got:\n%s", tc.reason, diff)
 			}
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
-				t.Errorf("Resolve(b): -want, +got:\n%s", diff)
+				t.Errorf("\n%sResolve(b): -want, +got:\n%s", tc.reason, diff)
 			}
 		})
 	}
@@ -458,7 +489,7 @@ func TestConvertResolve(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			got, err := (&ConvertTransform{ToType: tc.args.ot}).Resolve([]interface{}{tc.i})
+			got, err := (&ConvertTransform{ToType: tc.args.ot}).Resolve(tc.i)
 
 			if diff := cmp.Diff(tc.want.o, got); diff != "" {
 				t.Errorf("Resolve(b): -want, +got:\n%s", diff)
@@ -705,23 +736,20 @@ func TestPatchApply(t *testing.T) {
 				err: nil,
 			},
 		},
-		"ValidMultipleCompositeFieldPathPatch": {
-			reason: "Should correctly apply a CompositeMultipleFieldPathPatch with valid settings",
+		"ValidManyCompositeFieldPathPatch": {
+			reason: "Should correctly apply a CompositeManyFieldPathPatch with valid settings",
 			args: args{
 				patch: Patch{
-					Type: PatchTypeFromMultipleCompositeFieldPaths,
-					FromMultipleFieldPaths: []string{
+					Type: PatchTypeFromManyCompositeFieldPaths,
+					FromManyFieldPaths: []string{
 						"objectMeta.labels.labelOne",
 						"objectMeta.labels.labelTwo",
 					},
 					ToFieldPath: pointer.StringPtr("objectMeta.labels.labelThree"),
 					Transforms: []Transform{{
-						Type: TransformTypeCombine,
-						Combine: &CombineTransform{
-							Type: CombineTransformTypeString,
-							String: &StringCombine{
-								Format: "%s--%s",
-							},
+						Type: TransformTypeString,
+						String: &StringTransform{
+							Format: "%s--%s",
 						},
 					}},
 				},
@@ -751,40 +779,6 @@ func TestPatchApply(t *testing.T) {
 				err: nil,
 			},
 		},
-		"InvalidMultipleCompositeFieldPathPatch": {
-			reason: "Should not apply a CompositeMultipleFieldPathPatch that resolves to multiple fields without a combine transform",
-			args: args{
-				patch: Patch{
-					Type: PatchTypeFromMultipleCompositeFieldPaths,
-					FromMultipleFieldPaths: []string{
-						"objectMeta.labels.labelOne",
-						"objectMeta.labels.labelTwo",
-					},
-					ToFieldPath: pointer.StringPtr("objectMeta.labels.labelThree"),
-				},
-				cp: &fake.Composite{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "cp",
-						Labels: map[string]string{
-							"labelOne": "foo",
-							"labelTwo": "bar",
-						},
-					},
-					ConnectionDetailsLastPublishedTimer: lpt,
-				},
-				cd: &fake.Composed{
-					ObjectMeta: metav1.ObjectMeta{Name: "cd"},
-				},
-			},
-			want: want{
-				cd: &fake.Composed{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "cd",
-					},
-				},
-				err: errors.New(errMultipleValuesReturned),
-			},
-		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -803,86 +797,6 @@ func TestPatchApply(t *testing.T) {
 			}
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\nApply(err): -want, +got:\n%s", tc.reason, diff)
-			}
-		})
-	}
-}
-
-func TestCombineResolve(t *testing.T) {
-	type args struct {
-		tt CombineTransformType
-		ts StringCombine
-		i  []interface{}
-	}
-	type want struct {
-		o   []interface{}
-		err error
-	}
-
-	cases := map[string]struct {
-		reason string
-		args
-		want
-	}{
-		"CombineOneStringToString": {
-			reason: "Should no-op a single string input value to a single output value",
-			args: args{
-				i: []interface{}{
-					"one-value",
-				},
-				tt: CombineTransformTypeString,
-				ts: StringCombine{
-					Format: "%s TEST",
-				},
-			},
-			want: want{
-				o: []interface{}{"one-value TEST"},
-			},
-		},
-		"CombineMultipleStringsToString": {
-			reason: "Should combine multiple string input values to a single output value",
-			args: args{
-				i: []interface{}{
-					"one-value",
-					"two-value",
-				},
-				tt: CombineTransformTypeString,
-				ts: StringCombine{
-					Format: "%s TEST %s",
-				},
-			},
-			want: want{
-				o: []interface{}{"one-value TEST two-value"},
-			},
-		},
-		"CombineMultipleInputTypesToStringFormat": {
-			reason: "Should combine multiple input values supported by fmt.Sprintf to a single output value",
-			args: args{
-				i: []interface{}{
-					"one-value",
-					1,
-					3.14159,
-					true,
-				},
-				tt: CombineTransformTypeString,
-				ts: StringCombine{
-					Format: "%s TEST %d PI %.3f %t",
-				},
-			},
-			want: want{
-				o: []interface{}{"one-value TEST 1 PI 3.142 true"},
-			},
-		},
-	}
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			got, err := (&CombineTransform{Type: tc.args.tt, String: &tc.args.ts}).Resolve(tc.i)
-
-			if diff := cmp.Diff(tc.want.o, got); diff != "" {
-				t.Errorf("Resolve(b): -want, +got:\n%s", diff)
-			}
-			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
-				t.Errorf("Resolve(b): -want, +got:\n%s", diff)
 			}
 		})
 	}
