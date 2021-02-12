@@ -272,7 +272,8 @@ func (c *Patch) filterPatch(only ...PatchType) bool {
 }
 
 // applyTransforms applies a list of transforms to patch value(s).
-// The transform chain must return a single value.
+// The transform chain may return multiple values, but if it returns
+// only one, we decapsulate it.
 func (c *Patch) applyTransforms(input ...interface{}) (interface{}, error) {
 	var err error
 	for i, t := range c.Transforms {
@@ -280,7 +281,7 @@ func (c *Patch) applyTransforms(input ...interface{}) (interface{}, error) {
 			return nil, errors.Wrapf(err, errFmtTransformAtIndex, i)
 		}
 	}
-	// If we have multiple outputs, return them
+	// If we have multiple outputs, return them as-is
 	if len(input) > 1 {
 		return input, nil
 	}
