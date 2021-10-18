@@ -69,18 +69,23 @@ composite resources (i.e. `writeConnectionSecretsToNamespace`)
 
 ## Out of Scope
 
-This design focuses on writing/publishing connection details to external stores
-and not about reading/consuming them in the form of **provider credentials**
-or **to consume via the workloads**. There are already ways to consume secrets
-in external stores from Kubernetes and is out of the scope for this document.
-See [Vault credential injection guide] to see how one can configure Vault and
-Crossplane to consume provider credentials from Vault. To consume secrets living
-inside Vault from workloads running in Kubernetes, one can consider
-[injecting via Vault agent] or use solutions like [External Secrets].
+The following is out of scope for this design:
 
-One exception for reading secrets back is, Crossplane itself needs to read
-connection details of managed resources to build secrets for composite
-resources and this will be covered in the design.
+- Reading **provider credentials** from external secret stores.
+
+  This design focuses on writing/publishing connection details to external
+  stores and not about reading them as **provider credentials**. There are 
+  already ways to consume secrets in external stores from Kubernetes and is out
+  of the scope for this document. Check [Vault credential injection guide] to
+  see how one can configure Vault and Crossplane to consume provider credentials
+  from Vault.
+
+- Reading managed resource **input secrets** from external secret stores.
+
+  There are some resources which requires sensitive information like initial
+  password as input. Typically, this type of input is received from a Kubernetes
+  secret. This design focuses on storing credentials produced by Crossplane
+  hence input secrets are out of scope.
 
 ## Design
 
@@ -235,9 +240,10 @@ Claim spec for writing connection secret in the same Kubernetes namespace:
 ```
 spec:
   publishConnectionDetailsTo:
-    name: database-creds # when neither `kubernetes` nor `externalStore` configs
-                         # provided, it defaults to "kubernetes in the same
-                         # namespace", same as "kubernetes: {}"
+    name: database-creds 
+    # when neither `kubernetes` nor `externalStore` configs
+    # provided, it defaults to "kubernetes in the same
+    # namespace", same as "kubernetes: {}"
 ```
 
 Claim spec for writing connection secret to Vault:
@@ -386,14 +392,14 @@ spec:
 
 ### Implementation
 
-We will define a new interface `ConnectionSecretStore` as follows which
-satisfies slightly modified versions of the existing [ConnectionPublisher] and
+We will define a new interface `ConnectionSecretStore`, which satisfies slightly
+modified versions of the existing [ConnectionPublisher] and
 [ConnectionDetailsFetcher] interfaces. This interface will be satisfied by any
 Secret Store including the local Kubernetes. We will need this interface to be
 defined in crossplane-runtime repository since both managed and Crossplane
 composite reconcilers would use this interface. This will require some 
 refactoring since the existing interfaces defined in different
-packages/repositories.
+packages/repositories today.
 
 ```
 type ConnectionSecretStore interface {
@@ -402,12 +408,12 @@ type ConnectionSecretStore interface {
 }
 
 type ConnectionDetailsPublisher interface {
-	PublishConnection(ctx context.Context, p resource.PublishConnectionConfig, c managed.ConnectionDetails) error
-	UnpublishConnection(ctx context.Context, p resource.PublishConnectionConfig, c managed.ConnectionDetails) error
+	PublishConnection(ctx context.Context, p ConnectionSecretPublisher, c managed.ConnectionDetails) error
+	UnpublishConnection(ctx context.Context, p ConnectionSecretPublisher, c managed.ConnectionDetails) error
 }
 
 type ConnectionDetailsFetcher interface {
-	FetchConnectionDetails(ctx context.Context, p resource.PublishConnectionConfig) (managed.ConnectionDetails, error)
+	FetchConnectionDetails(ctx context.Context, p ConnectionSecretPublisher) (managed.ConnectionDetails, error)
 }
 ```
 
@@ -417,6 +423,27 @@ ensure any changes in the `StoreConfig` resources to be reflected in the next
 reconcile. Local kubernetes store is an exception here since it already uses
 in cluster config which does not depend on a `StoreConfig` and would use the
 same client as it is doing today.
+
+Other types to complete the picture:
+
+```
+type ConnectionSecretPublisher interface {
+	Object
+
+	ConnectionSecretPublisherTo
+}
+
+type ConnectionSecretPublisherTo interface {
+	SetPublishConnectionSecretTo(c *xpv1.ConnectionSecretConfig)
+	GetPublishConnectionSecretTo() *xpv1.ConnectionSecretConfig
+}
+
+type ConnectionSecretConfig struct {
+	Name string `json:"name"`
+	Kubernetes *KubernetesConnectionSecretConfig `json:"kubernetes"`
+	ExternalStore *ExternalConnectionSecretConfig `json:"externalStore"`
+}
+```
 
 ### Bonus Use Case: Publish Connection Details to Another Kubernetes Cluster
 
@@ -458,7 +485,16 @@ spec:
 
 ## Future Considerations
 
-### Templating support for custom secret values 
+### Reading Input Secrets from External Secret Stores
+
+There are two types of input secrets in Crossplane, provider credentials and
+sensitive fields in managed resource spec. These are provided with Kubernetes
+secrets today, and intentionally left out of scope for this design to limit
+the scope. However, the types and interfaces defined here would be leveraged
+to satisfy these two cases which will result in a unified secret management
+no matter it is input or output.
+
+### Templating Support for Custom Secret Values 
 
 Not directly related to supporting external secret stores but thanks to
 extensible API proposed in this design, we might consider adding an interface
