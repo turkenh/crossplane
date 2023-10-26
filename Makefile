@@ -178,6 +178,16 @@ run: go.build
 # ====================================================================================
 # Special Targets
 
+test-github-action:
+	@$(INFO) "Running hack"
+ifneq ($(PRE_RELEASE),true)
+	@echo "This is NOT a pre-release build with version $(VERSION)"
+else
+	@echo "This is a pre-release build with version $(VERSION)"
+endif
+	@$(INFO) "Running hack OK"
+
+
 define CROSSPLANE_MAKE_HELP
 Crossplane Targets:
     cobertura          Generate a coverage report for cobertura applying exclusions on generated files.
