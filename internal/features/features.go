@@ -40,6 +40,10 @@ const (
 	// compositions, i.e. watching MRs and reconciling compositions immediately
 	// when any MR is updated.
 	EnableRealtimeCompositions feature.Flag = "EnableRealtimeCompositions"
+
+	// EnableProviderIdentity enables alpha support for Provider identity. This
+	// feature is only available when running on Upbound.
+	EnableProviderIdentity feature.Flag = "EnableProviderIdentity"
 )
 
 // Beta Feature Flags

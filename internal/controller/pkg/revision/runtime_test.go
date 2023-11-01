@@ -125,6 +125,24 @@ func TestRuntimeManifestBuilderDeployment(t *testing.T) {
 				})),
 			},
 		},
+		"ProviderDeploymentWithProviderIdentity": {
+			reason: "If provider identity is enabled, a proidc volume should be added.",
+			args: args{
+				builder: &RuntimeManifestBuilder{
+					revision:         providerRevision,
+					namespace:        namespace,
+					providerIdentity: true,
+				},
+				serviceAccountName: providerRevisionName,
+				overrides:          providerDeploymentOverrides(&pkgmetav1.Provider{ObjectMeta: metav1.ObjectMeta{Name: providerMetaName}}, providerRevision),
+			},
+			want: want{
+				want: deploymentProvider(providerName, providerRevisionName, providerImage, DeploymentWithSelectors(map[string]string{
+					"pkg.crossplane.io/provider": providerMetaName,
+					"pkg.crossplane.io/revision": providerRevisionName,
+				}), DeploymentWithUpboundProviderIdentity()),
+			},
+		},
 		"ProviderDeploymentWithImageOverride": {
 			reason: "Image should be overridden if specified in the function spec",
 			args: args{
