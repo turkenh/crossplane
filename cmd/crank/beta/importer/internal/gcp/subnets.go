@@ -2,14 +2,13 @@ package gcp
 
 import (
 	"context"
+	"github.com/crossplane/crossplane/cmd/crank/beta/importer/internal/resource"
 
 	"google.golang.org/api/compute/v1"
-
-	"github.com/crossplane/crossplane/cmd/crank/beta/importer"
 )
 
-func (n *Subnetwork) GetResources(ctx context.Context, region, project, filter string) ([]importer.Resource, error) {
-	var resources []importer.Resource
+func (n *Subnetwork) GetResources(ctx context.Context, region, project, filter string) ([]resource.Resource, error) {
+	var resources []resource.Resource
 	computeService, err := compute.NewService(ctx)
 	if err != nil {
 		return nil, err
@@ -20,7 +19,7 @@ func (n *Subnetwork) GetResources(ctx context.Context, region, project, filter s
 
 	if err := subnetworksList.Pages(ctx, func(page *compute.SubnetworkList) error {
 		for _, obj := range page.Items {
-			resources = append(resources, importer.Resource{
+			resources = append(resources, resource.Resource{
 				APIVersion:   "compute.gcp.upbound.io/v1beta1",
 				Kind:         "Subnetwork",
 				ExternalName: obj.Name,

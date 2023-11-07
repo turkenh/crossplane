@@ -1,9 +1,14 @@
 package importer
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
 	"fmt"
+	resourceTemplate "github.com/crossplane/crossplane/cmd/crank/beta/importer/internal/gcp/template"
+	"github.com/crossplane/crossplane/cmd/crank/beta/importer/internal/resource"
+	"sigs.k8s.io/yaml"
+	"text/template"
 
 	"github.com/alecthomas/kong"
 	"github.com/crossplane/crossplane-runtime/pkg/errors"
@@ -15,7 +20,7 @@ import (
 
 // ResourceTemplate is populated with imported resources.
 //
-//go:embed internal/gcp/templates/resource.tmpl
+//go:embed internal/gcp/template/resource.tmpl
 var ResourceTemplate string
 
 // gcpCmd arguments and flags for gcp subcommand.
@@ -44,7 +49,7 @@ Examples:
 
 // Run import for gcp resources.
 func (c *gcpCmd) Run(_ *kong.Context, _ logging.Logger) error {
-	var resources []Resource
+	var resources []resource.Resource
 
 	for _, r := range c.Resources {
 		if s, ok := gcp.ServiceMapping[r]; ok {
@@ -56,17 +61,26 @@ func (c *gcpCmd) Run(_ *kong.Context, _ logging.Logger) error {
 		}
 	}
 
+	t, err := template.New("resource").Parse(resourceTemplate.Resource)
+	if err != nil {
+		return errors.Wrap(err, "cannot parse resource template")
+	}
+
+	buf := &bytes.Buffer{}
+	for _, r := range resources {
+		if r.Params != nil {
+			b, err := yaml.Marshal(r.Params)
+			if err != nil {
+				return errors.Wrapf(err, "cannot marshal params for %v", r)
+			}
+			r.ProcessedParams = string(b)
+		}
+		if err = t.Execute(buf, r); err != nil {
+			return errors.Wrapf(err, "cannot execute resource template for %v", r)
+		}
+		buf.Write([]byte("\n---\n"))
+	}
+
+	fmt.Println(buf.String())
 	return nil
-}
-
-type Resource struct {
-	APIVersion   string
-	Kind         string
-	ExternalName string
-	Params       map[string]any
-}
-
-type Service interface {
-	// GetResources returns a list of resources that can be imported.
-	GetResources(ctx context.Context, region, project, filter string) ([]Resource, error)
 }

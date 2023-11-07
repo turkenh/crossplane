@@ -6,4 +6,9 @@ metadata:
   name: {{ .ExternalName}}
 spec:
   managementPolicies: ["Observe"]
+  {{- if not .ProcessedParams }}
   forProvider: {}
+  {{- else }}
+  forProvider:
+    {{ .ProcessedParams }}
+  {{- end }}
