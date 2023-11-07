@@ -1,0 +1,9 @@
+apiVersion: {{ .APIVersion }}
+kind: {{ .Kind}}
+metadata:
+  annotations:
+    crossplane.io/external-name: {{ .ExternalName }}
+  name: {{ .ExternalName}}
+spec:
+  managementPolicies: ["Observe"]
+  forProvider: {}
