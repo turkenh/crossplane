@@ -113,6 +113,11 @@ func (p *DefaultPrinter) Print(w io.Writer, root *resource.Resource) error {
 		if item.resource.Unstructured.GetNamespace() != "" {
 			name.WriteString(fmt.Sprintf(" (%s)", item.resource.Unstructured.GetNamespace()))
 		}
+
+		if item.resource.Unstructured.GetAnnotations() != nil && item.resource.Unstructured.GetAnnotations()["crossplane.io/composition-resource-name"] != "" {
+			name.WriteString(fmt.Sprintf(" (%s)", item.resource.Unstructured.GetAnnotations()["crossplane.io/composition-resource-name"]))
+		}
+
 		ready, synced, status := getResourceStatus(item.resource, p.wide)
 
 		row := defaultPrinterRow{
