@@ -46,8 +46,14 @@ var (
 	ControllerConfigGroupKind        = schema.GroupKind{Group: Group, Kind: ControllerConfigKind}.String()
 	ControllerConfigKindAPIVersion   = ControllerConfigKind + "." + SchemeGroupVersion.String()
 	ControllerConfigGroupVersionKind = SchemeGroupVersion.WithKind(ControllerConfigKind)
+
+	RegistryConfigKind             = reflect.TypeOf(RegistryConfig{}).Name()
+	RegistryConfigGroupKind        = schema.GroupKind{Group: Group, Kind: ControllerConfigKind}.String()
+	RegistryConfigKindAPIVersion   = ControllerConfigKind + "." + SchemeGroupVersion.String()
+	RegistryConfigGroupVersionKind = SchemeGroupVersion.WithKind(ControllerConfigKind)
 )
 
 func init() {
 	SchemeBuilder.Register(&ControllerConfig{}, &ControllerConfigList{})
+	SchemeBuilder.Register(&RegistryConfig{}, &RegistryConfigList{})
 }
