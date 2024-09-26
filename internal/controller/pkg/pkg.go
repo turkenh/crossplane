@@ -18,6 +18,7 @@ limitations under the License.
 package pkg
 
 import (
+	"github.com/crossplane/crossplane/internal/controller/pkg/config"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/crossplane/crossplane/internal/controller/pkg/controller"
@@ -36,6 +37,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		revision.SetupConfigurationRevision,
 		revision.SetupProviderRevision,
 		revision.SetupFunctionRevision,
+		config.Setup,
 	} {
 		if err := setup(mgr, o); err != nil {
 			return err

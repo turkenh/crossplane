@@ -1,0 +1,17 @@
+apiVersion: pkg.crossplane.io/v1alpha1
+kind: RegistryConfig
+metadata:
+  name: upbound-official-providers
+spec:
+  match:
+    prefix: xpkg.upbound.io/upbound
+  credentials:
+    pullSecretRef:
+      name: upbound-registry-credentials
+      namespace: crossplane-system
+# signing:
+#   required: true
+#   publicKeyConfigMapRef:
+#     name: upbound-registry-public-key
+#     namespace: crossplane-system
+#     key: public-key

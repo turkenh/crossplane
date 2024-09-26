@@ -45,7 +45,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: RegistryConfigSpec defines the desired state of RegistryConfig
+            description: RegistryConfigSpec defines the desired state of RegistryConfig.
             properties:
               credentials:
                 description: Credentials are the credentials to use when accessing
