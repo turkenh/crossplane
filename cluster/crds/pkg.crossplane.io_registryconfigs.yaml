@@ -1,0 +1,127 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: registryconfigs.pkg.crossplane.io
+spec:
+  group: pkg.crossplane.io
+  names:
+    kind: RegistryConfig
+    listKind: RegistryConfigList
+    plural: registryconfigs
+    singular: registryconfig
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.match.prefix
+      name: PREFIX
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: A RegistryConfig configures a registry for use by the package
+          manager.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: RegistryConfigSpec defines the desired state of RegistryConfig
+            properties:
+              credentials:
+                description: Credentials are the credentials to use when accessing
+                  this registry.
+                properties:
+                  pullSecretRef:
+                    description: |-
+                      PullSecretRef is a reference to a secret of type kubernetes.io/dockerconfigjson
+                      that contains the credentials to use when accessing this registry.
+                    properties:
+                      name:
+                        description: Name of the secret.
+                        type: string
+                      namespace:
+                        description: Namespace of the secret.
+                        type: string
+                    required:
+                    - name
+                    - namespace
+                    type: object
+                required:
+                - pullSecretRef
+                type: object
+              match:
+                description: Match is a list of matchers that determine if this registry
+                  should be used.
+                properties:
+                  prefix:
+                    description: |-
+                      A prefix of the user-specified image name, i.e. using one of the
+                      following formats:
+                        - host[:port]
+                       - host[:port]/namespace[/namespace…]
+                       - host[:port]/namespace[/namespace…]/repo
+                       - host[:port]/namespace[/namespace…]/repo(:tag|@digest)
+                       - [*.]host
+                      We are following the same format as registries.conf for prefix, see https://www.mankier.com/5/containers-registries.conf
+                    type: string
+                required:
+                - prefix
+                type: object
+              signing:
+                description: Signing contains the configuration for image signing.
+                properties:
+                  publicKeyConfigMapRef:
+                    description: |-
+                      PublicKeyConfigMapRef is a reference to a ConfigMap that contains the
+                      public key to use when verifying signatures from this registry.
+                    properties:
+                      key:
+                        description: The key to select.
+                        type: string
+                      name:
+                        description: Name of the configmap.
+                        type: string
+                      namespace:
+                        description: Namespace of the configmap.
+                        type: string
+                    required:
+                    - key
+                    - name
+                    - namespace
+                    type: object
+                  required:
+                    description: |-
+                      Required indicates whether the signature is required for images from this
+                      registry.
+                    type: boolean
+                required:
+                - publicKeyConfigMapRef
+                - required
+                type: object
+            required:
+            - match
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources: {}
