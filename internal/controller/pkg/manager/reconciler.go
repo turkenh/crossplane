@@ -159,7 +159,7 @@ func SetupProvider(mgr ctrl.Manager, o controller.Options) error {
 	if err != nil {
 		return errors.Wrap(err, errCreateK8sClient)
 	}
-	f, err := xpkg.NewK8sFetcher(cs, append(o.FetcherOptions, xpkg.WithNamespace(o.Namespace), xpkg.WithServiceAccount(o.ServiceAccount))...)
+	f, err := xpkg.NewK8sFetcher(cs, xpkg.NewKubeRegistryConfigStore(mgr.GetClient(), o.Namespace), append(o.FetcherOptions, xpkg.WithNamespace(o.Namespace), xpkg.WithServiceAccount(o.ServiceAccount))...)
 	if err != nil {
 		return errors.Wrap(err, errBuildFetcher)
 	}
@@ -192,7 +192,7 @@ func SetupConfiguration(mgr ctrl.Manager, o controller.Options) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to initialize clientset")
 	}
-	fetcher, err := xpkg.NewK8sFetcher(clientset, append(o.FetcherOptions, xpkg.WithNamespace(o.Namespace), xpkg.WithServiceAccount(o.ServiceAccount))...)
+	fetcher, err := xpkg.NewK8sFetcher(clientset, xpkg.NewKubeRegistryConfigStore(mgr.GetClient(), o.Namespace), append(o.FetcherOptions, xpkg.WithNamespace(o.Namespace), xpkg.WithServiceAccount(o.ServiceAccount))...)
 	if err != nil {
 		return errors.Wrap(err, "cannot build fetcher")
 	}
@@ -225,7 +225,7 @@ func SetupFunction(mgr ctrl.Manager, o controller.Options) error {
 	if err != nil {
 		return errors.Wrap(err, errCreateK8sClient)
 	}
-	f, err := xpkg.NewK8sFetcher(cs, append(o.FetcherOptions, xpkg.WithNamespace(o.Namespace), xpkg.WithServiceAccount(o.ServiceAccount))...)
+	f, err := xpkg.NewK8sFetcher(cs, xpkg.NewKubeRegistryConfigStore(mgr.GetClient(), o.Namespace), append(o.FetcherOptions, xpkg.WithNamespace(o.Namespace), xpkg.WithServiceAccount(o.ServiceAccount))...)
 	if err != nil {
 		return errors.Wrap(err, errBuildFetcher)
 	}

@@ -59,12 +59,8 @@ spec:
                       name:
                         description: Name of the secret.
                         type: string
-                      namespace:
-                        description: Namespace of the secret.
-                        type: string
                     required:
                     - name
-                    - namespace
                     type: object
                 required:
                 - pullSecretRef
@@ -101,13 +97,9 @@ spec:
                       name:
                         description: Name of the configmap.
                         type: string
-                      namespace:
-                        description: Namespace of the configmap.
-                        type: string
                     required:
                     - key
                     - name
-                    - namespace
                     type: object
                   required:
                     description: |-

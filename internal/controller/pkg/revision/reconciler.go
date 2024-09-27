@@ -206,6 +206,13 @@ func WithParserBackend(p parser.Backend) ReconcilerOption {
 	}
 }
 
+// WithStore specifies registry config store to use
+func WithStore(s xpkg.RegistryConfigStore) ReconcilerOption {
+	return func(r *Reconciler) {
+		r.store = s
+	}
+}
+
 // WithLinter specifies how the Reconciler should lint a package.
 func WithLinter(l parser.Linter) ReconcilerOption {
 	return func(r *Reconciler) {
@@ -261,6 +268,7 @@ type Reconciler struct {
 	linter         parser.Linter
 	versioner      version.Operations
 	backend        parser.Backend
+	store          xpkg.RegistryConfigStore
 	log            logging.Logger
 	record         event.Recorder
 	features       *feature.Flags
@@ -288,7 +296,8 @@ func SetupProviderRevision(mgr ctrl.Manager, o controller.Options) error {
 	if err != nil {
 		return errors.New(errCannotBuildObjectSchema)
 	}
-	fetcher, err := xpkg.NewK8sFetcher(clientset, append(o.FetcherOptions, xpkg.WithNamespace(o.Namespace), xpkg.WithServiceAccount(o.ServiceAccount))...)
+	store := xpkg.NewKubeRegistryConfigStore(mgr.GetClient(), o.Namespace)
+	fetcher, err := xpkg.NewK8sFetcher(clientset, store, append(o.FetcherOptions, xpkg.WithNamespace(o.Namespace), xpkg.WithServiceAccount(o.ServiceAccount))...)
 	if err != nil {
 		return errors.Wrap(err, errCannotBuildFetcher)
 	}
@@ -303,6 +312,7 @@ func SetupProviderRevision(mgr ctrl.Manager, o controller.Options) error {
 		Watches(&v1alpha1.ControllerConfig{}, &EnqueueRequestForReferencingProviderRevisions{
 			client: mgr.GetClient(),
 		})
+	// TODO: Watch RegistryConfigs and enqueue all, here in anywhere relying on Registry Config store?
 
 	ro := []ReconcilerOption{
 		WithCache(o.Cache),
@@ -311,6 +321,7 @@ func SetupProviderRevision(mgr ctrl.Manager, o controller.Options) error {
 		WithNewPackageRevisionFn(nr),
 		WithParser(parser.New(metaScheme, objScheme)),
 		WithParserBackend(NewImageBackend(fetcher, WithDefaultRegistry(o.DefaultRegistry))),
+		WithStore(store),
 		WithLinter(xpkg.NewProviderLinter()),
 		WithLogger(o.Logger.WithValues("controller", name)),
 		WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
@@ -351,7 +362,8 @@ func SetupConfigurationRevision(mgr ctrl.Manager, o controller.Options) error {
 	if err != nil {
 		return errors.New(errCannotBuildObjectSchema)
 	}
-	f, err := xpkg.NewK8sFetcher(cs, append(o.FetcherOptions, xpkg.WithNamespace(o.Namespace), xpkg.WithServiceAccount(o.ServiceAccount))...)
+	store := xpkg.NewKubeRegistryConfigStore(mgr.GetClient(), o.Namespace)
+	f, err := xpkg.NewK8sFetcher(cs, store, append(o.FetcherOptions, xpkg.WithNamespace(o.Namespace), xpkg.WithServiceAccount(o.ServiceAccount))...)
 	if err != nil {
 		return errors.Wrap(err, errCannotBuildFetcher)
 	}
@@ -363,6 +375,7 @@ func SetupConfigurationRevision(mgr ctrl.Manager, o controller.Options) error {
 		WithEstablisher(NewAPIEstablisher(mgr.GetClient(), o.Namespace)),
 		WithParser(parser.New(metaScheme, objScheme)),
 		WithParserBackend(NewImageBackend(f, WithDefaultRegistry(o.DefaultRegistry))),
+		WithStore(store),
 		WithLinter(xpkg.NewConfigurationLinter()),
 		WithLogger(o.Logger.WithValues("controller", name)),
 		WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
@@ -396,7 +409,8 @@ func SetupFunctionRevision(mgr ctrl.Manager, o controller.Options) error {
 	if err != nil {
 		return errors.New(errCannotBuildObjectSchema)
 	}
-	fetcher, err := xpkg.NewK8sFetcher(clientset, append(o.FetcherOptions, xpkg.WithNamespace(o.Namespace), xpkg.WithServiceAccount(o.ServiceAccount))...)
+	store := xpkg.NewKubeRegistryConfigStore(mgr.GetClient(), o.Namespace)
+	fetcher, err := xpkg.NewK8sFetcher(clientset, store, append(o.FetcherOptions, xpkg.WithNamespace(o.Namespace), xpkg.WithServiceAccount(o.ServiceAccount))...)
 	if err != nil {
 		return errors.Wrap(err, errCannotBuildFetcher)
 	}
@@ -423,6 +437,7 @@ func SetupFunctionRevision(mgr ctrl.Manager, o controller.Options) error {
 		WithLogger(o.Logger.WithValues("controller", name)),
 		WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
 		WithNamespace(o.Namespace),
+		WithStore(store),
 		WithServiceAccount(o.ServiceAccount),
 		WithFeatureFlags(o.Features),
 	}
@@ -932,6 +947,14 @@ func (r *Reconciler) runtimeManifestBuilderOptions(ctx context.Context, pwr v1.P
 	}
 	if len(sa.ImagePullSecrets) > 0 {
 		opts = append(opts, RuntimeManifestBuilderWithServiceAccountPullSecrets(sa.ImagePullSecrets))
+	}
+
+	ss, err := r.store.ImagePullSecretFor(ctx, pwr.GetSource())
+	if err != nil {
+		return nil, errors.Wrap(err, "cannot get image pull secret from registry config store")
+	}
+	if ss != "" {
+		opts = append(opts, RuntimeManifestBuilderWithRegistryConfigPullSecret(&corev1.LocalObjectReference{Name: ss}))
 	}
 
 	return opts, nil

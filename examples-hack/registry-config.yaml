@@ -7,8 +7,7 @@ spec:
     prefix: xpkg.upbound.io/upbound
   credentials:
     pullSecretRef:
-      name: upbound-registry-credentials
-      namespace: crossplane-system
+      name: package-pull-secret
 # signing:
 #   required: true
 #   publicKeyConfigMapRef:

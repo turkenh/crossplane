@@ -17,6 +17,7 @@ limitations under the License.
 package revision
 
 import (
+	"github.com/crossplane/crossplane/internal/xpkg"
 	"golang.org/x/net/context"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -99,8 +100,10 @@ type RuntimeManifestBuilder struct {
 	revision                  v1.PackageRevisionWithRuntime
 	namespace                 string
 	serviceAccountPullSecrets []corev1.LocalObjectReference
+	registryConfigPullSecret  *corev1.LocalObjectReference
 	runtimeConfig             *v1beta1.DeploymentRuntimeConfig
 	controllerConfig          *v1alpha1.ControllerConfig
+	storeConfig               xpkg.RegistryConfigStore
 }
 
 // RuntimeManifestBuilderOption is used to configure a RuntimeManifestBuilder.
@@ -127,6 +130,14 @@ func RuntimeManifestBuilderWithControllerConfig(cc *v1alpha1.ControllerConfig) R
 func RuntimeManifestBuilderWithServiceAccountPullSecrets(secrets []corev1.LocalObjectReference) RuntimeManifestBuilderOption {
 	return func(b *RuntimeManifestBuilder) {
 		b.serviceAccountPullSecrets = secrets
+	}
+}
+
+// RuntimeManifestBuilderWithRegistryConfigPullSecret sets the registry config
+// pull secret to use when building the runtime manifests.
+func RuntimeManifestBuilderWithRegistryConfigPullSecret(secret *corev1.LocalObjectReference) RuntimeManifestBuilderOption {
+	return func(b *RuntimeManifestBuilder) {
+		b.registryConfigPullSecret = secret
 	}
 }
 
@@ -222,6 +233,10 @@ func (b *RuntimeManifestBuilder) Deployment(serviceAccount string, overrides ...
 			},
 		}),
 	)
+
+	if b.registryConfigPullSecret != nil {
+		allOverrides = append(allOverrides, DeploymentWithAdditionalPullSecrets([]corev1.LocalObjectReference{*b.registryConfigPullSecret}))
+	}
 
 	if b.revision.GetPackagePullPolicy() != nil {
 		// If the package pull policy is set, it will override the default

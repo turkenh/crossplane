@@ -48,16 +48,14 @@ type RegistryConfigMatch struct {
 type RegistryConfigCredentials struct {
 	// PullSecretRef is a reference to a secret of type kubernetes.io/dockerconfigjson
 	// that contains the credentials to use when accessing this registry.
-	PullSecretRef v1.SecretReference `json:"pullSecretRef"`
+	PullSecretRef v1.LocalSecretReference `json:"pullSecretRef"`
 }
 
-// A ConfigMapKeySelector is a reference to a key of a configmap in an arbitrary
+// A LocalConfigMapKeySelector is a reference to a key of a configmap in an arbitrary
 // namespace.
-type ConfigMapKeySelector struct {
+type LocalConfigMapKeySelector struct {
 	// Name of the configmap.
 	Name string `json:"name"`
-	// Namespace of the configmap.
-	Namespace string `json:"namespace"`
 	// The key to select.
 	Key string `json:"key" protobuf:"bytes,2,opt,name=key"`
 }
@@ -69,7 +67,7 @@ type RegistryConfigSigning struct {
 	Required bool `json:"required"`
 	// PublicKeyConfigMapRef is a reference to a ConfigMap that contains the
 	// public key to use when verifying signatures from this registry.
-	PublicKeyConfigMapRef ConfigMapKeySelector `json:"publicKeyConfigMapRef"`
+	PublicKeyConfigMapRef LocalConfigMapKeySelector `json:"publicKeyConfigMapRef"`
 }
 
 // RegistryConfigSpec defines the desired state of RegistryConfig.

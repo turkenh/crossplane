@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"github.com/google/go-containerregistry/pkg/authn"
 	"io"
 	"net/http"
 
@@ -57,6 +58,8 @@ type K8sFetcher struct {
 	serviceAccount string
 	transport      http.RoundTripper
 	userAgent      string
+
+	configStore RegistryConfigStore
 }
 
 // FetcherOpt can be used to add optional parameters to NewK8sFetcher.
@@ -107,14 +110,15 @@ func WithServiceAccount(sa string) FetcherOpt {
 }
 
 // NewK8sFetcher creates a new K8sFetcher.
-func NewK8sFetcher(client kubernetes.Interface, opts ...FetcherOpt) (*K8sFetcher, error) {
+func NewK8sFetcher(client kubernetes.Interface, store RegistryConfigStore, opts ...FetcherOpt) (*K8sFetcher, error) {
 	dt, ok := remote.DefaultTransport.(*http.Transport)
 	if !ok {
 		return nil, errors.Errorf("default transport was not a %T", &http.Transport{})
 	}
 	k := &K8sFetcher{
-		client:    client,
-		transport: dt.Clone(),
+		client:      client,
+		transport:   dt.Clone(),
+		configStore: store,
 	}
 
 	for _, o := range opts {
@@ -128,11 +132,7 @@ func NewK8sFetcher(client kubernetes.Interface, opts ...FetcherOpt) (*K8sFetcher
 
 // Fetch fetches a package image.
 func (i *K8sFetcher) Fetch(ctx context.Context, ref name.Reference, secrets ...string) (v1.Image, error) {
-	auth, err := k8schain.New(ctx, i.client, k8schain.Options{
-		Namespace:          i.namespace,
-		ServiceAccountName: i.serviceAccount,
-		ImagePullSecrets:   secrets,
-	})
+	auth, err := i.kubeAuth(ctx, ref, secrets...)
 	if err != nil {
 		return nil, err
 	}
@@ -146,11 +146,7 @@ func (i *K8sFetcher) Fetch(ctx context.Context, ref name.Reference, secrets ...s
 
 // Head fetches a package descriptor.
 func (i *K8sFetcher) Head(ctx context.Context, ref name.Reference, secrets ...string) (*v1.Descriptor, error) {
-	auth, err := k8schain.New(ctx, i.client, k8schain.Options{
-		Namespace:          i.namespace,
-		ServiceAccountName: i.serviceAccount,
-		ImagePullSecrets:   secrets,
-	})
+	auth, err := i.kubeAuth(ctx, ref, secrets...)
 	if err != nil {
 		return nil, err
 	}
@@ -177,11 +173,7 @@ func (i *K8sFetcher) Head(ctx context.Context, ref name.Reference, secrets ...st
 
 // Tags fetches a package's tags.
 func (i *K8sFetcher) Tags(ctx context.Context, ref name.Reference, secrets ...string) ([]string, error) {
-	auth, err := k8schain.New(ctx, i.client, k8schain.Options{
-		Namespace:          i.namespace,
-		ServiceAccountName: i.serviceAccount,
-		ImagePullSecrets:   secrets,
-	})
+	auth, err := i.kubeAuth(ctx, ref, secrets...)
 	if err != nil {
 		return nil, err
 	}
@@ -191,6 +183,22 @@ func (i *K8sFetcher) Tags(ctx context.Context, ref name.Reference, secrets ...st
 		remote.WithContext(ctx),
 		remote.WithUserAgent(i.userAgent),
 	)
+}
+
+func (i *K8sFetcher) kubeAuth(ctx context.Context, ref name.Reference, secrets ...string) (authn.Keychain, error) {
+	s, err := i.configStore.ImagePullSecretFor(ctx, ref.String())
+	if err != nil {
+		return nil, errors.Wrap(err, "cannot get image pull secret from registry config store")
+	}
+	if s != "" {
+		secrets = append(secrets, s)
+	}
+
+	return k8schain.New(ctx, i.client, k8schain.Options{
+		Namespace:          i.namespace,
+		ServiceAccountName: i.serviceAccount,
+		ImagePullSecrets:   secrets,
+	})
 }
 
 // NopFetcher always returns an empty image and never returns error.
