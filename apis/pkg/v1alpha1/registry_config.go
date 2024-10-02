@@ -1,9 +1,10 @@
 package v1alpha1
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	v1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
+	sigstorev1beta1 "github.com/sigstore/policy-controller/pkg/apis/policy/v1beta1"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // +kubebuilder:object:root=true
@@ -60,14 +61,27 @@ type LocalConfigMapKeySelector struct {
 	Key string `json:"key" protobuf:"bytes,2,opt,name=key"`
 }
 
-// RegistryConfigSigning contains the configuration for image signing.
-type RegistryConfigSigning struct {
-	// Required indicates whether the signature is required for images from this
-	// registry.
-	Required bool `json:"required"`
-	// PublicKeyConfigMapRef is a reference to a ConfigMap that contains the
-	// public key to use when verifying signatures from this registry.
-	PublicKeyConfigMapRef LocalConfigMapKeySelector `json:"publicKeyConfigMapRef"`
+type VerificationProvider string
+
+const (
+	// CosignVerificationProvider is the provider for cosign verification.
+	CosignVerificationProvider VerificationProvider = "cosign"
+)
+
+type CosignVerification struct {
+	// TODO: Define types here, do not import from sigstore
+	// Authorities defines the rules for discovering and validating signatures.
+	// +optional
+	Authorities []sigstorev1beta1.Authority `json:"authorities,omitempty"`
+}
+
+// RegistryConfigVerification contains the configuration for image signing.
+type RegistryConfigVerification struct {
+	Provider VerificationProvider `json:"provider"`
+
+	// Cosign contains the configuration for cosign verification.
+	// +optional
+	Cosign *CosignVerification `json:"cosign,omitempty"`
 }
 
 // RegistryConfigSpec defines the desired state of RegistryConfig.
@@ -79,5 +93,5 @@ type RegistryConfigSpec struct {
 	Credentials *RegistryConfigCredentials `json:"credentials,omitempty"`
 	// Signing contains the configuration for image signing.
 	// +optional
-	Signing *RegistryConfigSigning `json:"signing,omitempty"`
+	Verification *RegistryConfigVerification `json:"verification,omitempty"`
 }
