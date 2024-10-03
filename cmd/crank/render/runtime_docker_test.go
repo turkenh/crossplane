@@ -18,10 +18,10 @@ package render
 
 import (
 	"context"
+	typesimage "github.com/docker/docker/api/types/image"
 	"io"
 	"testing"
 
-	"github.com/docker/docker/api/types"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,10 +32,10 @@ import (
 )
 
 type mockPullClient struct {
-	MockPullImage func(_ context.Context, ref string, options types.ImagePullOptions) (io.ReadCloser, error)
+	MockPullImage func(_ context.Context, ref string, options typesimage.PullOptions) (io.ReadCloser, error)
 }
 
-func (m *mockPullClient) ImagePull(ctx context.Context, ref string, options types.ImagePullOptions) (io.ReadCloser, error) {
+func (m *mockPullClient) ImagePull(ctx context.Context, ref string, options typesimage.PullOptions) (io.ReadCloser, error) {
 	return m.MockPullImage(ctx, ref, options)
 }
 

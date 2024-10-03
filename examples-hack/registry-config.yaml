@@ -4,7 +4,7 @@ metadata:
   name: upbound-official-providers
 spec:
   match:
-    prefix: xpkg.upbound.io/upbound
+    prefix: xpkg.dev-deba7a0e.u6d.dev/upbound
   credentials:
     pullSecretRef:
       name: package-pull-secret
@@ -14,9 +14,13 @@ spec:
       authorities:
         - name: verify upbound official build
           keyless:
+            url: https://fulcio.sigstore.dev
             identities:
               - issuer: https://token.actions.githubusercontent.com
-                subjectRegExp: https://github.com/upbound/upbound-official-build/*
+                #subjectRegExp: https://github.com/upbound/upbound-official-build/*
+                subjectRegExp: https://github.com/sergenyalcin/upbound-official-build/*
+          ctlog:
+            url: https://rekor.sigstore.dev
           attestations:
             - name: verify attestations
               predicateType: spdxjson

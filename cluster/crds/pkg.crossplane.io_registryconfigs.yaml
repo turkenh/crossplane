@@ -94,14 +94,6 @@ spec:
                           TODO: Define types here, do not import from sigstore
                           Authorities defines the rules for discovering and validating signatures.
                         items:
-                          description: |-
-                            The authorities block defines the rules for discovering and
-                            validating signatures.  Signatures are
-                            cryptographically verified using one of the "key" or "keyless"
-                            fields.
-                            When multiple authorities are specified, any of them may be used
-                            to source the valid signature we are looking for to admit an
-                            image.
                           properties:
                             attestations:
                               description: |-
@@ -223,7 +215,7 @@ spec:
                                 the image.
                               properties:
                                 data:
-                                  description: Data contains the inline public key.
+                                  description: Data contains the inline public key
                                   type: string
                                 hashAlgorithm:
                                   description: HashAlgorithm always defaults to sha256
@@ -258,7 +250,7 @@ spec:
                                   properties:
                                     data:
                                       description: Data contains the inline public
-                                        key.
+                                        key
                                       type: string
                                     hashAlgorithm:
                                       description: HashAlgorithm always defaults to
@@ -348,7 +340,8 @@ spec:
                               type: object
                             source:
                               description: Sources sets the configuration to specify
-                                the sources from where to consume the signatures.
+                                the sources from where to consume the signature and
+                                attestations.
                               items:
                                 description: Source specifies the location of the
                                   signature / attestations.
@@ -399,8 +392,10 @@ spec:
                                     policy.
                                   type: string
                                 message:
-                                  description: For fail actions, emit an optional
-                                    custom message
+                                  description: |-
+                                    For fail actions, emit an optional custom message. This only makes
+                                    sense for 'fail' action because on 'pass' there's no place to jot down
+                                    the message.
                                   type: string
                               required:
                               - action

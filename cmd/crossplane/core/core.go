@@ -180,7 +180,7 @@ func (c *startCommand) Run(s *runtime.Scheme, log logging.Logger) error { //noli
 		RenewDeadline:                 func() *time.Duration { d := 50 * time.Second; return &d }(),
 
 		PprofBindAddress:       c.Profile,
-		HealthProbeBindAddress: ":8081",
+		HealthProbeBindAddress: ":8085",
 	})
 	if err != nil {
 		return errors.Wrap(err, "cannot create manager")

@@ -21,7 +21,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"github.com/sigstore/policy-controller/pkg/apis/policy/v1beta1"
+	policyv1alpha1 "github.com/sigstore/policy-controller/pkg/apis/policy/v1alpha1"
 	"k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
@@ -221,7 +221,7 @@ func (in *CosignVerification) DeepCopyInto(out *CosignVerification) {
 	*out = *in
 	if in.Authorities != nil {
 		in, out := &in.Authorities, &out.Authorities
-		*out = make([]v1beta1.Authority, len(*in))
+		*out = make([]policyv1alpha1.Authority, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}

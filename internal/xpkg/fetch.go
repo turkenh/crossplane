@@ -20,8 +20,10 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"io"
+	"knative.dev/pkg/apis"
 	"net/http"
 
 	"github.com/google/go-containerregistry/pkg/authn/k8schain"
@@ -29,6 +31,7 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	sigstorewebhook "github.com/sigstore/policy-controller/pkg/webhook"
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 
@@ -136,12 +139,44 @@ func (i *K8sFetcher) Fetch(ctx context.Context, ref name.Reference, secrets ...s
 	if err != nil {
 		return nil, err
 	}
-	return remote.Image(ref,
+	img, err := remote.Image(ref,
 		remote.WithAuthFromKeychain(auth),
 		remote.WithTransport(i.transport),
 		remote.WithContext(ctx),
 		remote.WithUserAgent(i.userAgent),
 	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get remote image")
+	}
+
+	cip, err := i.configStore.ClusterImagePolicyFor(ctx, ref.String())
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get cluster image policy")
+	}
+
+	if cip != nil {
+		res, errs := sigstorewebhook.ValidatePolicy(ctx, "crossplane-system", ref, *cip, auth)
+		if res != nil { //nolint: revive
+			// Ignore the errors for other authorities if we got a policy result.
+		} else {
+			// If we didn't get a policy result, then surface any errors.
+			for _, err := range errs {
+				var fe *apis.FieldError
+				if errors.As(err, &fe) {
+					if warnFE := fe.Filter(apis.WarningLevel); warnFE != nil {
+						fmt.Println("Warning: %v", warnFE)
+					}
+					if errorFE := fe.Filter(apis.ErrorLevel); errorFE != nil {
+						return nil, errorFE
+					}
+				} else {
+					return nil, err
+				}
+			}
+		}
+	}
+
+	return img, nil
 }
 
 // Head fetches a package descriptor.

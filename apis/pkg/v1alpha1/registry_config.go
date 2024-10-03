@@ -2,7 +2,7 @@ package v1alpha1
 
 import (
 	v1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
-	sigstorev1beta1 "github.com/sigstore/policy-controller/pkg/apis/policy/v1beta1"
+	sigstorev1alpha1 "github.com/sigstore/policy-controller/pkg/apis/policy/v1alpha1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -72,7 +72,7 @@ type CosignVerification struct {
 	// TODO: Define types here, do not import from sigstore
 	// Authorities defines the rules for discovering and validating signatures.
 	// +optional
-	Authorities []sigstorev1beta1.Authority `json:"authorities,omitempty"`
+	Authorities []sigstorev1alpha1.Authority `json:"authorities,omitempty"`
 }
 
 // RegistryConfigVerification contains the configuration for image signing.

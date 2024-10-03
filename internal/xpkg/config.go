@@ -2,17 +2,19 @@ package xpkg
 
 import (
 	"context"
+	sigstorev1alpha1 "github.com/sigstore/policy-controller/pkg/apis/policy/v1alpha1"
+	"strings"
+
 	"github.com/crossplane/crossplane-runtime/pkg/errors"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane/apis/pkg/v1alpha1"
-	corev1 "k8s.io/api/core/v1"
+	webhookcip "github.com/sigstore/policy-controller/pkg/webhook/clusterimagepolicy"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
 )
 
 type RegistryConfigStore interface {
 	ImagePullSecretFor(ctx context.Context, image string) (string, error)
-	SigningPublicKeyFor(ctx context.Context, image string) (string, error)
+	ClusterImagePolicyFor(ctx context.Context, image string) (*webhookcip.ClusterImagePolicy, error)
 }
 
 type KubernetesRegistryConfigStoreOption func(*KubeRegistryConfigStore)
@@ -66,37 +68,31 @@ func (k *KubeRegistryConfigStore) ImagePullSecretFor(ctx context.Context, image 
 	return secret, nil
 }
 
-func (k *KubeRegistryConfigStore) SigningPublicKeyFor(ctx context.Context, image string) (string, error) {
+func (k *KubeRegistryConfigStore) ClusterImagePolicyFor(ctx context.Context, image string) (*webhookcip.ClusterImagePolicy, error) {
 	// List all RegistryConfig objects and find the longest matching prefix
 	l := &v1alpha1.RegistryConfigList{}
 	if err := k.client.List(ctx, l); err != nil {
-		return "", errors.Wrap(err, "cannot list RegistryConfig objects")
+		return nil, errors.Wrap(err, "cannot list RegistryConfig objects")
 	}
 
-	var cmName, cmKey string
+	var rv *v1alpha1.RegistryConfigVerification
 	var longestMatch int
 	for _, r := range l.Items {
 		if strings.HasPrefix(image, r.Spec.Match.Prefix) {
-			if r.Spec.Signing != nil && len(r.Spec.Match.Prefix) > longestMatch {
-				cmName = r.Spec.Signing.PublicKeyConfigMapRef.Name
-				cmKey = r.Spec.Signing.PublicKeyConfigMapRef.Key
+			if r.Spec.Verification != nil && len(r.Spec.Match.Prefix) > longestMatch {
+				rv = r.Spec.Verification
 				longestMatch = len(r.Spec.Match.Prefix)
 			}
 		}
 	}
 
-	if cmName == "" {
-		return "", nil
+	if rv == nil {
+		return nil, nil
 	}
 
-	// Fetch the public key from the ConfigMap
-	cm := &corev1.ConfigMap{}
-	if err := k.client.Get(ctx, client.ObjectKey{Namespace: k.namespace, Name: cmName}, cm); err != nil {
-		return "", errors.Wrapf(err, "cannot get ConfigMap %q", cmName)
-	}
-	if cm.Data[cmKey] == "" {
-		return "", errors.Errorf("public key %q not found in ConfigMap", cmKey)
-	}
-
-	return cm.Data[cmKey], nil
+	return webhookcip.ConvertClusterImagePolicyV1alpha1ToWebhook(&sigstorev1alpha1.ClusterImagePolicy{
+		Spec: sigstorev1alpha1.ClusterImagePolicySpec{
+			Authorities: rv.Cosign.Authorities,
+		},
+	}), nil
 }
