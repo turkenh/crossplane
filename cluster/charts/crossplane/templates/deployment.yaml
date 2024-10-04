@@ -134,7 +134,7 @@ spec:
             port: readyz
         ports:
         - name: readyz
-          containerPort: 8081
+          containerPort: 8085
         {{- if .Values.metrics.enabled }}
         - name: metrics
           containerPort: 8080

@@ -1,10 +1,10 @@
 apiVersion: pkg.crossplane.io/v1alpha1
 kind: RegistryConfig
 metadata:
-  name: upbound-official-providers
+  name: upbound-signature-verification
 spec:
   match:
-    prefix: xpkg.dev-deba7a0e.u6d.dev/upbound
+    prefix: xpkg.dev-deba7a0e.u6d.dev/upbound/
   verification:
     provider: cosign
     cosign:

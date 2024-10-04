@@ -1,0 +1,7 @@
+apiVersion: pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: platform-ref-private-dependency
+spec:
+  ignoreCrossplaneConstraints: true
+  package: xpkg.upbound.io/hasan/platform-ref-private-dependency:v0.0.2

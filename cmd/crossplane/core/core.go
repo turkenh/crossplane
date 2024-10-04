@@ -383,6 +383,11 @@ func (c *startCommand) Run(s *runtime.Scheme, log logging.Logger) error { //noli
 		PackageRuntime:  pr,
 	}
 
+	// See https://github.com/sigstore/sigstore/blob/ecaaf75cf3a942cf224533ae15aee6eec19dc1e2/pkg/tuf/client.go#L558
+	if err = os.Setenv("TUF_ROOT", filepath.Join(c.CacheDir, ".sigstore", "root")); err != nil {
+		return errors.Wrap(err, "cannot set TUF_ROOT environment variable")
+	}
+
 	if c.CABundlePath != "" {
 		rootCAs, err := ParseCertificatesFromPath(c.CABundlePath)
 		if err != nil {
