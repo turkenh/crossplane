@@ -5,9 +5,6 @@ metadata:
 spec:
   match:
     prefix: xpkg.dev-deba7a0e.u6d.dev/upbound
-  credentials:
-    pullSecretRef:
-      name: package-pull-secret
   verification:
     provider: cosign
     cosign:

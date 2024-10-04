@@ -1,0 +1,10 @@
+apiVersion: pkg.crossplane.io/v1alpha1
+kind: RegistryConfig
+metadata:
+  name: opentofu-auth
+spec:
+  match:
+    prefix: xpkg.upbound.io/upboundcare
+  credentials:
+    pullSecretRef:
+      name: package-pull-secret
