@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	"fmt"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -30,6 +31,10 @@ const (
 
 	// A TypeHealthy indicates whether a package is healthy.
 	TypeHealthy xpv1.ConditionType = "Healthy"
+
+	// A TypeSignatureVerified indicates whether a package's signature
+	// has been verified.
+	TypeSignatureVerified xpv1.ConditionType = "SignatureVerified"
 )
 
 // Reasons a package is or is not installed.
@@ -40,6 +45,13 @@ const (
 	ReasonUnhealthy     xpv1.ConditionReason = "UnhealthyPackageRevision"
 	ReasonHealthy       xpv1.ConditionReason = "HealthyPackageRevision"
 	ReasonUnknownHealth xpv1.ConditionReason = "UnknownPackageRevisionHealth"
+)
+
+// Reasons a package's signature is or is not verified.
+const (
+	ReasonVerificationSucceeded xpv1.ConditionReason = "VerificationSucceeded"
+	ReasonVerificationFailed    xpv1.ConditionReason = "VerificationFailed"
+	ReasonVerificationSkipped   xpv1.ConditionReason = "VerificationSkipped"
 )
 
 // Unpacking indicates that the package manager is waiting for a package
@@ -102,5 +114,44 @@ func UnknownHealth() xpv1.Condition {
 		Status:             corev1.ConditionUnknown,
 		LastTransitionTime: metav1.Now(),
 		Reason:             ReasonUnknownHealth,
+	}
+}
+
+// VerificationSucceededWith returns a condition indicating that a package's
+// signature has been successfully verified using the supplied image config.
+func VerificationSucceededWith(imageConfig string) xpv1.Condition {
+	return xpv1.Condition{
+		Type:               TypeSignatureVerified,
+		Status:             corev1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+		Reason:             ReasonVerificationSucceeded,
+		Message:            fmt.Sprintf("Signature verification succeeded with ImageConfig named %q", imageConfig),
+	}
+}
+
+// VerificationFailedWith returns a condition indicating that a package's
+// signature verification failed using the supplied image config.
+func VerificationFailedWith(imageConfig string, err error) xpv1.Condition {
+	return xpv1.Condition{
+		Type:               TypeSignatureVerified,
+		Status:             corev1.ConditionFalse,
+		LastTransitionTime: metav1.Now(),
+		Reason:             ReasonVerificationFailed,
+		Message:            fmt.Sprintf("Signature verification failed with ImageConfig named %q: %s", imageConfig, err),
+	}
+}
+
+// VerificationSkipped returns a condition indicating that signature
+// verification was skipped for a package.
+func VerificationSkipped() xpv1.Condition {
+	return xpv1.Condition{
+		Type: TypeSignatureVerified,
+		// TODO: This feels a bit weird, skipped but true.
+		//  Should we be using ConditionFalse here? Should package revision
+		//  reconciler wait for the condition to exist or to be true before
+		//  proceeding?
+		Status:             corev1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+		Reason:             ReasonVerificationSkipped,
 	}
 }
