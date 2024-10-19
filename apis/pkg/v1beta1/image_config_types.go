@@ -158,6 +158,9 @@ type CosignAuthority struct {
 type KeyRef struct {
 	// SecretRef sets a reference to a secret with the key.
 	SecretRef xpv1.LocalSecretReference `json:"secretRef"`
+	// Data contains the inline public key
+	// +optional
+	Data string `json:"data,omitempty"`
 	// HashAlgorithm always defaults to sha256 if the algorithm hasn't been explicitly set
 	// +optional
 	HashAlgorithm *string `json:"hashAlgorithm,omitempty"`

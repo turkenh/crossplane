@@ -155,6 +155,9 @@ spec:
                               description: Key defines the type of key to validate
                                 the image.
                               properties:
+                                data:
+                                  description: Data contains the inline public key
+                                  type: string
                                 hashAlgorithm:
                                   description: HashAlgorithm always defaults to sha256
                                     if the algorithm hasn't been explicitly set
@@ -180,6 +183,10 @@ spec:
                                 ca-cert:
                                   description: CACert sets a reference to CA certificate
                                   properties:
+                                    data:
+                                      description: Data contains the inline public
+                                        key
+                                      type: string
                                     hashAlgorithm:
                                       description: HashAlgorithm always defaults to
                                         sha256 if the algorithm hasn't been explicitly
