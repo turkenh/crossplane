@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package manager
+package xpkg
 
 import (
 	"context"
@@ -29,8 +29,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 
 	v1 "github.com/crossplane/crossplane/apis/pkg/v1"
-	"github.com/crossplane/crossplane/internal/xpkg"
-	"github.com/crossplane/crossplane/internal/xpkg/fake"
+	"github.com/crossplane/crossplane/pkg/xpkg/fake"
 )
 
 func TestPackageRevisioner(t *testing.T) {
@@ -39,7 +38,7 @@ func TestPackageRevisioner(t *testing.T) {
 	pullIfNotPresent := corev1.PullIfNotPresent
 
 	type args struct {
-		f                    xpkg.Fetcher
+		f                    Fetcher
 		pkg                  v1.Package
 		pullSecretFromConfig string
 	}

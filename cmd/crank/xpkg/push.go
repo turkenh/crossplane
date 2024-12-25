@@ -35,9 +35,9 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/errors"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 
-	"github.com/crossplane/crossplane/internal/xpkg"
-	"github.com/crossplane/crossplane/internal/xpkg/upbound"
-	"github.com/crossplane/crossplane/internal/xpkg/upbound/credhelper"
+	"github.com/crossplane/crossplane/pkg/xpkg"
+	"github.com/crossplane/crossplane/pkg/xpkg/upbound"
+	"github.com/crossplane/crossplane/pkg/xpkg/upbound/credhelper"
 )
 
 const (

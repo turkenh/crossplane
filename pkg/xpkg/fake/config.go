@@ -4,10 +4,7 @@ import (
 	"context"
 
 	"github.com/crossplane/crossplane/apis/pkg/v1beta1"
-	"github.com/crossplane/crossplane/internal/xpkg"
 )
-
-var _ xpkg.ConfigStore = &MockConfigStore{}
 
 // MockConfigStore is a mock ConfigStore.
 type MockConfigStore struct {

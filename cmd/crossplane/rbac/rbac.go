@@ -33,7 +33,7 @@ import (
 
 	"github.com/crossplane/crossplane/internal/controller/rbac"
 	rbaccontroller "github.com/crossplane/crossplane/internal/controller/rbac/controller"
-	"github.com/crossplane/crossplane/internal/xpkg"
+	"github.com/crossplane/crossplane/pkg/xpkg"
 )
 
 // KongVars represent the kong variables associated with the CLI parser

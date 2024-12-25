@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package manager
+package xpkg
 
 import (
 	"context"
@@ -25,7 +25,6 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/errors"
 
 	v1 "github.com/crossplane/crossplane/apis/pkg/v1"
-	"github.com/crossplane/crossplane/internal/xpkg"
 )
 
 const (
@@ -40,22 +39,22 @@ type Revisioner interface {
 
 // PackageRevisioner extracts a revision name for a package source.
 type PackageRevisioner struct {
-	fetcher  xpkg.Fetcher
+	fetcher  Fetcher
 	registry string
 }
 
 // A PackageRevisionerOption sets configuration for a package revisioner.
 type PackageRevisionerOption func(r *PackageRevisioner)
 
-// WithDefaultRegistry sets the default registry that a package revisioner will use.
-func WithDefaultRegistry(registry string) PackageRevisionerOption {
+// RevisionerWithDefaultRegistry sets the default registry that a package revisioner will use.
+func RevisionerWithDefaultRegistry(registry string) PackageRevisionerOption {
 	return func(r *PackageRevisioner) {
 		r.registry = registry
 	}
 }
 
 // NewPackageRevisioner returns a new PackageRevisioner.
-func NewPackageRevisioner(fetcher xpkg.Fetcher, opts ...PackageRevisionerOption) *PackageRevisioner {
+func NewPackageRevisioner(fetcher Fetcher, opts ...PackageRevisionerOption) *PackageRevisioner {
 	r := &PackageRevisioner{
 		fetcher: fetcher,
 	}
@@ -69,7 +68,7 @@ func NewPackageRevisioner(fetcher xpkg.Fetcher, opts ...PackageRevisionerOption)
 func (r *PackageRevisioner) Revision(ctx context.Context, p v1.Package, extraPullSecrets ...string) (string, error) {
 	pullPolicy := p.GetPackagePullPolicy()
 	if pullPolicy != nil && *pullPolicy == corev1.PullNever {
-		return xpkg.FriendlyID(p.GetName(), p.GetSource()), nil
+		return FriendlyID(p.GetName(), p.GetSource()), nil
 	}
 	if pullPolicy != nil && *pullPolicy == corev1.PullIfNotPresent {
 		if p.GetCurrentIdentifier() == p.GetSource() {
@@ -89,7 +88,7 @@ func (r *PackageRevisioner) Revision(ctx context.Context, p v1.Package, extraPul
 	if err != nil || d == nil {
 		return "", errors.Wrap(err, errFetchPackage)
 	}
-	return xpkg.FriendlyID(p.GetName(), d.Digest.Hex), nil
+	return FriendlyID(p.GetName(), d.Digest.Hex), nil
 }
 
 // NopRevisioner returns an empty revision name.

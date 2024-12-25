@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package manager
+package packages
 
 import (
 	"context"
@@ -40,10 +40,11 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 
 	v1 "github.com/crossplane/crossplane/apis/pkg/v1"
-	"github.com/crossplane/crossplane/internal/xpkg/fake"
+	"github.com/crossplane/crossplane/pkg/xpkg"
+	"github.com/crossplane/crossplane/pkg/xpkg/fake"
 )
 
-var _ Revisioner = &MockRevisioner{}
+var _ xpkg.Revisioner = &MockRevisioner{}
 
 type MockRevisioner struct {
 	MockRevision func() (string, error)

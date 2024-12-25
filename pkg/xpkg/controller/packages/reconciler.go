@@ -1,38 +1,18 @@
-/*
-Copyright 2020 The Crossplane Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-// Package manager implements the Crossplane Package controllers.
-package manager
+// Package packages contains the reconciler for the Package resources.
+package packages
 
 import (
 	"context"
 	"fmt"
 	"math"
 	"reflect"
-	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
@@ -40,13 +20,10 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
-	"github.com/crossplane/crossplane-runtime/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
 
 	v1 "github.com/crossplane/crossplane/apis/pkg/v1"
-	"github.com/crossplane/crossplane/apis/pkg/v1beta1"
-	"github.com/crossplane/crossplane/internal/controller/pkg/controller"
-	"github.com/crossplane/crossplane/internal/xpkg"
+	"github.com/crossplane/crossplane/pkg/xpkg"
 )
 
 const (
@@ -80,9 +57,6 @@ const (
 
 	errUnhealthyPackageRevision     = "current package revision is unhealthy"
 	errUnknownPackageRevisionHealth = "current package revision health is unknown"
-
-	errCreateK8sClient = "failed to initialize clientset"
-	errBuildFetcher    = "cannot build fetcher"
 )
 
 // Event reasons.
@@ -122,7 +96,7 @@ func WithNewPackageRevisionListFn(f func() v1.PackageRevisionList) ReconcilerOpt
 
 // WithRevisioner specifies how the Reconciler should acquire a package image's
 // revision name.
-func WithRevisioner(d Revisioner) ReconcilerOption {
+func WithRevisioner(d xpkg.Revisioner) ReconcilerOption {
 	return func(r *Reconciler) {
 		r.pkg = d
 	}
@@ -152,7 +126,7 @@ func WithRecorder(er event.Recorder) ReconcilerOption {
 // Reconciler reconciles packages.
 type Reconciler struct {
 	client resource.ClientApplicator
-	pkg    Revisioner
+	pkg    xpkg.Revisioner
 	config xpkg.ConfigStore
 	log    logging.Logger
 	record event.Recorder
@@ -162,114 +136,6 @@ type Reconciler struct {
 	newPackageRevisionList func() v1.PackageRevisionList
 }
 
-// SetupProvider adds a controller that reconciles Providers.
-func SetupProvider(mgr ctrl.Manager, o controller.Options) error {
-	name := "packages/" + strings.ToLower(v1.ProviderGroupKind)
-	np := func() v1.Package { return &v1.Provider{} }
-	nr := func() v1.PackageRevision { return &v1.ProviderRevision{} }
-	nrl := func() v1.PackageRevisionList { return &v1.ProviderRevisionList{} }
-
-	cs, err := kubernetes.NewForConfig(mgr.GetConfig())
-	if err != nil {
-		return errors.Wrap(err, errCreateK8sClient)
-	}
-	f, err := xpkg.NewK8sFetcher(cs, append(o.FetcherOptions, xpkg.WithNamespace(o.Namespace), xpkg.WithServiceAccount(o.ServiceAccount))...)
-	if err != nil {
-		return errors.Wrap(err, errBuildFetcher)
-	}
-
-	log := o.Logger.WithValues("controller", name)
-	opts := []ReconcilerOption{
-		WithNewPackageFn(np),
-		WithNewPackageRevisionFn(nr),
-		WithNewPackageRevisionListFn(nrl),
-		WithRevisioner(NewPackageRevisioner(f, WithDefaultRegistry(o.DefaultRegistry))),
-		WithConfigStore(xpkg.NewImageConfigStore(mgr.GetClient(), o.Namespace)),
-		WithLogger(log),
-		WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
-	}
-
-	return ctrl.NewControllerManagedBy(mgr).
-		Named(name).
-		For(&v1.Provider{}).
-		Owns(&v1.ProviderRevision{}).
-		Watches(&v1beta1.ImageConfig{}, enqueueProvidersForImageConfig(mgr.GetClient(), log)).
-		WithOptions(o.ForControllerRuntime()).
-		Complete(ratelimiter.NewReconciler(name, errors.WithSilentRequeueOnConflict(NewReconciler(mgr, opts...)), o.GlobalRateLimiter))
-}
-
-// SetupConfiguration adds a controller that reconciles Configurations.
-func SetupConfiguration(mgr ctrl.Manager, o controller.Options) error {
-	name := "packages/" + strings.ToLower(v1.ConfigurationGroupKind)
-	np := func() v1.Package { return &v1.Configuration{} }
-	nr := func() v1.PackageRevision { return &v1.ConfigurationRevision{} }
-	nrl := func() v1.PackageRevisionList { return &v1.ConfigurationRevisionList{} }
-
-	clientset, err := kubernetes.NewForConfig(mgr.GetConfig())
-	if err != nil {
-		return errors.Wrap(err, "failed to initialize clientset")
-	}
-	fetcher, err := xpkg.NewK8sFetcher(clientset, append(o.FetcherOptions, xpkg.WithNamespace(o.Namespace), xpkg.WithServiceAccount(o.ServiceAccount))...)
-	if err != nil {
-		return errors.Wrap(err, "cannot build fetcher")
-	}
-
-	log := o.Logger.WithValues("controller", name)
-	r := NewReconciler(mgr,
-		WithNewPackageFn(np),
-		WithNewPackageRevisionFn(nr),
-		WithNewPackageRevisionListFn(nrl),
-		WithRevisioner(NewPackageRevisioner(fetcher, WithDefaultRegistry(o.DefaultRegistry))),
-		WithConfigStore(xpkg.NewImageConfigStore(mgr.GetClient(), o.Namespace)),
-		WithLogger(log),
-		WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
-	)
-
-	return ctrl.NewControllerManagedBy(mgr).
-		Named(name).
-		For(&v1.Configuration{}).
-		Owns(&v1.ConfigurationRevision{}).
-		Watches(&v1beta1.ImageConfig{}, enqueueConfigurationsForImageConfig(mgr.GetClient(), log)).
-		WithOptions(o.ForControllerRuntime()).
-		Complete(ratelimiter.NewReconciler(name, errors.WithSilentRequeueOnConflict(r), o.GlobalRateLimiter))
-}
-
-// SetupFunction adds a controller that reconciles Functions.
-func SetupFunction(mgr ctrl.Manager, o controller.Options) error {
-	name := "packages/" + strings.ToLower(v1.FunctionGroupKind)
-	np := func() v1.Package { return &v1.Function{} }
-	nr := func() v1.PackageRevision { return &v1.FunctionRevision{} }
-	nrl := func() v1.PackageRevisionList { return &v1.FunctionRevisionList{} }
-
-	cs, err := kubernetes.NewForConfig(mgr.GetConfig())
-	if err != nil {
-		return errors.Wrap(err, errCreateK8sClient)
-	}
-	f, err := xpkg.NewK8sFetcher(cs, append(o.FetcherOptions, xpkg.WithNamespace(o.Namespace), xpkg.WithServiceAccount(o.ServiceAccount))...)
-	if err != nil {
-		return errors.Wrap(err, errBuildFetcher)
-	}
-
-	log := o.Logger.WithValues("controller", name)
-	opts := []ReconcilerOption{
-		WithNewPackageFn(np),
-		WithNewPackageRevisionFn(nr),
-		WithNewPackageRevisionListFn(nrl),
-		WithRevisioner(NewPackageRevisioner(f, WithDefaultRegistry(o.DefaultRegistry))),
-		WithConfigStore(xpkg.NewImageConfigStore(mgr.GetClient(), o.Namespace)),
-		WithLogger(log),
-		WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
-	}
-
-	return ctrl.NewControllerManagedBy(mgr).
-		Named(name).
-		For(&v1.Function{}).
-		Owns(&v1.FunctionRevision{}).
-		Watches(&v1beta1.ImageConfig{}, enqueueFunctionsForImageConfig(mgr.GetClient(), log)).
-		WithOptions(o.ForControllerRuntime()).
-		Complete(ratelimiter.NewReconciler(name, errors.WithSilentRequeueOnConflict(NewReconciler(mgr, opts...)), o.GlobalRateLimiter))
-}
-
 // NewReconciler creates a new package reconciler.
 func NewReconciler(mgr ctrl.Manager, opts ...ReconcilerOption) *Reconciler {
 	r := &Reconciler{
@@ -277,7 +143,7 @@ func NewReconciler(mgr ctrl.Manager, opts ...ReconcilerOption) *Reconciler {
 			Client:     mgr.GetClient(),
 			Applicator: resource.NewAPIPatchingApplicator(mgr.GetClient()),
 		},
-		pkg:    NewNopRevisioner(),
+		pkg:    xpkg.NewNopRevisioner(),
 		log:    logging.NewNopLogger(),
 		record: event.NewNopRecorder(),
 	}
@@ -518,97 +384,4 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	// its health. If updating from an existing revision, the package health
 	// will match the health of the old revision until the next reconcile.
 	return pullBasedRequeue(p.GetPackagePullPolicy()), errors.Wrap(r.client.Status().Update(ctx, p), errUpdateStatus)
-}
-
-func enqueueProvidersForImageConfig(kube client.Client, log logging.Logger) handler.EventHandler {
-	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, o client.Object) []reconcile.Request {
-		ic, ok := o.(*v1beta1.ImageConfig)
-		if !ok {
-			return nil
-		}
-		// We only care about ImageConfigs that have a pull secret.
-		if ic.Spec.Registry == nil || ic.Spec.Registry.Authentication == nil || ic.Spec.Registry.Authentication.PullSecretRef.Name == "" {
-			return nil
-		}
-		// Enqueue all Providers matching the prefixes in the ImageConfig.
-		l := &v1.ProviderList{}
-		if err := kube.List(ctx, l); err != nil {
-			// Nothing we can do, except logging, if we can't list Providers.
-			log.Debug("Cannot list providers while attempting to enqueue from ImageConfig", "error", err)
-			return nil
-		}
-
-		var matches []reconcile.Request
-		for _, p := range l.Items {
-			for _, m := range ic.Spec.MatchImages {
-				if strings.HasPrefix(p.GetSource(), m.Prefix) {
-					log.Debug("Enqueuing provider for image config", "provider", p.Name, "imageConfig", ic.Name)
-					matches = append(matches, reconcile.Request{NamespacedName: types.NamespacedName{Name: p.Name}})
-				}
-			}
-		}
-		return matches
-	})
-}
-
-func enqueueConfigurationsForImageConfig(kube client.Client, log logging.Logger) handler.EventHandler {
-	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, o client.Object) []reconcile.Request {
-		ic, ok := o.(*v1beta1.ImageConfig)
-		if !ok {
-			return nil
-		}
-		// We only care about ImageConfigs that have a pull secret.
-		if ic.Spec.Registry == nil || ic.Spec.Registry.Authentication == nil || ic.Spec.Registry.Authentication.PullSecretRef.Name == "" {
-			return nil
-		}
-		// Enqueue all Configurations matching the prefixes in the ImageConfig.
-		l := &v1.ConfigurationList{}
-		if err := kube.List(ctx, l); err != nil {
-			// Nothing we can do, except logging, if we can't list Configurations.
-			log.Debug("Cannot list configurations while attempting to enqueue from ImageConfig", "error", err)
-			return nil
-		}
-
-		var matches []reconcile.Request
-		for _, c := range l.Items {
-			for _, m := range ic.Spec.MatchImages {
-				if strings.HasPrefix(c.GetSource(), m.Prefix) {
-					log.Debug("Enqueuing configuration for image config", "configuration", c.Name, "imageConfig", ic.Name)
-					matches = append(matches, reconcile.Request{NamespacedName: types.NamespacedName{Name: c.Name}})
-				}
-			}
-		}
-		return matches
-	})
-}
-
-func enqueueFunctionsForImageConfig(kube client.Client, log logging.Logger) handler.EventHandler {
-	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, o client.Object) []reconcile.Request {
-		ic, ok := o.(*v1beta1.ImageConfig)
-		if !ok {
-			return nil
-		}
-		// We only care about ImageConfigs that have a pull secret.
-		if ic.Spec.Registry == nil || ic.Spec.Registry.Authentication == nil || ic.Spec.Registry.Authentication.PullSecretRef.Name == "" {
-			return nil
-		}
-		// Enqueue all Functions matching the prefixes in the ImageConfig.
-		l := &v1.FunctionList{}
-		if err := kube.List(ctx, l); err != nil {
-			// Nothing we can do, except logging, if we can't list Functions.
-			log.Debug("Cannot list functions while attempting to enqueue from ImageConfig", "error", err)
-			return nil
-		}
-
-		var matches []reconcile.Request
-		for _, fn := range l.Items {
-			for _, m := range ic.Spec.MatchImages {
-				if strings.HasPrefix(fn.GetSource(), m.Prefix) {
-					log.Debug("Enqueuing function for image config", "function", fn.Name, "imageConfig", ic.Name)
-					matches = append(matches, reconcile.Request{NamespacedName: types.NamespacedName{Name: fn.Name}})
-				}
-			}
-		}
-		return matches
-	})
 }

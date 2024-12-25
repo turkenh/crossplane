@@ -25,8 +25,8 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/errors"
 
 	v1 "github.com/crossplane/crossplane/apis/pkg/v1"
-	"github.com/crossplane/crossplane/internal/xpkg"
-	"github.com/crossplane/crossplane/internal/xpkg/fake"
+	"github.com/crossplane/crossplane/pkg/xpkg"
+	"github.com/crossplane/crossplane/pkg/xpkg/fake"
 )
 
 func FuzzPackageRevision(f *testing.F) {
@@ -37,7 +37,7 @@ func FuzzPackageRevision(f *testing.F) {
 		fetcher := &fake.MockFetcher{
 			MockHead: fake.NewMockHeadFn(nil, errors.New("boom")),
 		}
-		r := NewPackageRevisioner(fetcher)
+		r := xpkg.NewPackageRevisioner(fetcher)
 		_, _ = r.Revision(context.Background(), pkg, "")
 		n, err := ff.GetString()
 		if err != nil {

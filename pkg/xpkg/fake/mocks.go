@@ -23,11 +23,7 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
-
-	"github.com/crossplane/crossplane/internal/xpkg"
 )
-
-var _ xpkg.PackageCache = &MockCache{}
 
 // MockCache is a mock Cache.
 type MockCache struct {
@@ -76,8 +72,6 @@ func (c *MockCache) Store(s string, rc io.ReadCloser) error {
 func (c *MockCache) Delete(string) error {
 	return c.MockDelete()
 }
-
-var _ xpkg.Fetcher = &MockFetcher{}
 
 // MockFetcher is a mock fetcher.
 type MockFetcher struct {
