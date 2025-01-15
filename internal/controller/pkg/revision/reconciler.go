@@ -20,6 +20,7 @@ package revision
 import (
 	"context"
 	"fmt"
+	"github.com/crossplane/crossplane/pkg/xpkg/revision"
 	"io"
 	"sort"
 	"strings"
@@ -50,11 +51,11 @@ import (
 	v1 "github.com/crossplane/crossplane/apis/pkg/v1"
 	"github.com/crossplane/crossplane/apis/pkg/v1alpha1"
 	"github.com/crossplane/crossplane/apis/pkg/v1beta1"
-	"github.com/crossplane/crossplane/internal/dag"
 	"github.com/crossplane/crossplane/internal/features"
 	"github.com/crossplane/crossplane/internal/version"
 	"github.com/crossplane/crossplane/pkg/xpkg"
 	"github.com/crossplane/crossplane/pkg/xpkg/controller"
+	"github.com/crossplane/crossplane/pkg/xpkg/dag"
 )
 
 const (
@@ -173,7 +174,7 @@ func WithFinalizer(f resource.Finalizer) ReconcilerOption {
 }
 
 // WithDependencyManager specifies how the Reconciler should manage dependencies.
-func WithDependencyManager(m DependencyManager) ReconcilerOption {
+func WithDependencyManager(m revision.DependencyManager) ReconcilerOption {
 	return func(r *Reconciler) {
 		r.lock = m
 	}
@@ -266,7 +267,7 @@ type Reconciler struct {
 	client         client.Client
 	cache          xpkg.PackageCache
 	revision       resource.Finalizer
-	lock           DependencyManager
+	lock           revision.DependencyManager
 	runtimeHook    RuntimeHooks
 	objects        Establisher
 	parser         parser.Parser
@@ -321,7 +322,7 @@ func SetupProviderRevision(mgr ctrl.Manager, o controller.Options) error {
 
 	ro := []ReconcilerOption{
 		WithCache(o.Cache),
-		WithDependencyManager(NewPackageDependencyManager(mgr.GetClient(), dag.NewMapDag, v1.ProviderGroupVersionKind)),
+		WithDependencyManager(revision.NewPackageDependencyManager(mgr.GetClient(), dag.NewMapDag, v1.ProviderGroupVersionKind)),
 		WithEstablisher(NewAPIEstablisher(mgr.GetClient(), o.Namespace, o.MaxConcurrentPackageEstablishers)),
 		WithNewPackageRevisionFn(nr),
 		WithParser(parser.New(metaScheme, objScheme)),
@@ -375,7 +376,7 @@ func SetupConfigurationRevision(mgr ctrl.Manager, o controller.Options) error {
 	log := o.Logger.WithValues("controller", name)
 	r := NewReconciler(mgr,
 		WithCache(o.Cache),
-		WithDependencyManager(NewPackageDependencyManager(mgr.GetClient(), dag.NewMapDag, v1.ConfigurationGroupVersionKind)),
+		WithDependencyManager(revision.NewPackageDependencyManager(mgr.GetClient(), dag.NewMapDag, v1.ConfigurationGroupVersionKind)),
 		WithNewPackageRevisionFn(nr),
 		WithEstablisher(NewAPIEstablisher(mgr.GetClient(), o.Namespace, o.MaxConcurrentPackageEstablishers)),
 		WithParser(parser.New(metaScheme, objScheme)),
@@ -435,7 +436,7 @@ func SetupFunctionRevision(mgr ctrl.Manager, o controller.Options) error {
 
 	ro := []ReconcilerOption{
 		WithCache(o.Cache),
-		WithDependencyManager(NewPackageDependencyManager(mgr.GetClient(), dag.NewMapDag, v1.FunctionGroupVersionKind)),
+		WithDependencyManager(revision.NewPackageDependencyManager(mgr.GetClient(), dag.NewMapDag, v1.FunctionGroupVersionKind)),
 		WithEstablisher(NewAPIEstablisher(mgr.GetClient(), o.Namespace, o.MaxConcurrentPackageEstablishers)),
 		WithNewPackageRevisionFn(nr),
 		WithParser(parser.New(metaScheme, objScheme)),

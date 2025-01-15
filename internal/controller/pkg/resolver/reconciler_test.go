@@ -43,9 +43,9 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 
 	"github.com/crossplane/crossplane/apis/pkg/v1beta1"
-	"github.com/crossplane/crossplane/internal/dag"
-	fakedag "github.com/crossplane/crossplane/internal/dag/fake"
 	"github.com/crossplane/crossplane/internal/features"
+	"github.com/crossplane/crossplane/pkg/xpkg/dag"
+	fakedag "github.com/crossplane/crossplane/pkg/xpkg/dag/fake"
 	fakexpkg "github.com/crossplane/crossplane/pkg/xpkg/fake"
 )
 

@@ -46,10 +46,10 @@ import (
 
 	v1 "github.com/crossplane/crossplane/apis/pkg/v1"
 	"github.com/crossplane/crossplane/apis/pkg/v1beta1"
-	internaldag "github.com/crossplane/crossplane/internal/dag"
 	"github.com/crossplane/crossplane/internal/features"
 	"github.com/crossplane/crossplane/pkg/xpkg"
 	"github.com/crossplane/crossplane/pkg/xpkg/controller"
+	internaldag "github.com/crossplane/crossplane/pkg/xpkg/dag"
 )
 
 const (

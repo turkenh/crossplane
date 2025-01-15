@@ -33,8 +33,8 @@ import (
 	pkgmetav1 "github.com/crossplane/crossplane/apis/pkg/meta/v1"
 	v1 "github.com/crossplane/crossplane/apis/pkg/v1"
 	"github.com/crossplane/crossplane/apis/pkg/v1beta1"
-	"github.com/crossplane/crossplane/internal/dag"
-	dagfake "github.com/crossplane/crossplane/internal/dag/fake"
+	"github.com/crossplane/crossplane/pkg/xpkg/dag"
+	dagfake "github.com/crossplane/crossplane/pkg/xpkg/dag/fake"
 )
 
 var _ DependencyManager = &PackageDependencyManager{}

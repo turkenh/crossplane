@@ -18,7 +18,7 @@ limitations under the License.
 package fake
 
 import (
-	"github.com/crossplane/crossplane/internal/dag"
+	"github.com/crossplane/crossplane/pkg/xpkg/dag"
 )
 
 var _ dag.DAG = &MockDag{}
