@@ -44,6 +44,7 @@ const (
 	ReasonUnpacking            xpv1.ConditionReason = "UnpackingPackage"
 	ReasonInactive             xpv1.ConditionReason = "InactivePackageRevision"
 	ReasonActive               xpv1.ConditionReason = "ActivePackageRevision"
+	ReasonEstablishing         xpv1.ConditionReason = "EstablishingPackageRevision"
 	ReasonUnhealthy            xpv1.ConditionReason = "UnhealthyPackageRevision"
 	ReasonHealthy              xpv1.ConditionReason = "HealthyPackageRevision"
 	ReasonUnknownHealth        xpv1.ConditionReason = "UnknownPackageRevisionHealth"
@@ -70,7 +71,7 @@ const (
 // a package's signature to be verified.
 func AwaitingVerification() xpv1.Condition {
 	return xpv1.Condition{
-		Type:               TypeHealthy,
+		Type:               TypeInstalled,
 		Status:             corev1.ConditionFalse,
 		LastTransitionTime: metav1.Now(),
 		Reason:             ReasonAwaitingVerification,
@@ -102,6 +103,28 @@ func Inactive() xpv1.Condition {
 // Active indicates that the package manager has installed and activated
 // a package revision.
 func Active() xpv1.Condition {
+	return xpv1.Condition{
+		Type:               TypeInstalled,
+		Status:             corev1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+		Reason:             ReasonActive,
+	}
+}
+
+// Establishing indicates that the package revision controller is currently
+// establishing the package revision objects in the cluster.
+func Establishing() xpv1.Condition {
+	return xpv1.Condition{
+		Type:               TypeInstalled,
+		Status:             corev1.ConditionFalse,
+		LastTransitionTime: metav1.Now(),
+		Reason:             ReasonUnpacking,
+	}
+}
+
+// Established indicates that the package revision controller has
+// successfully established the package revision objects in the cluster.
+func Established() xpv1.Condition {
 	return xpv1.Condition{
 		Type:               TypeInstalled,
 		Status:             corev1.ConditionTrue,

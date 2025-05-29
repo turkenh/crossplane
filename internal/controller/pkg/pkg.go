@@ -24,12 +24,13 @@ import (
 	"github.com/crossplane/crossplane/internal/controller/pkg/manager"
 	"github.com/crossplane/crossplane/internal/controller/pkg/resolver"
 	"github.com/crossplane/crossplane/internal/controller/pkg/revision"
+	"github.com/crossplane/crossplane/internal/controller/pkg/runtime"
 	"github.com/crossplane/crossplane/internal/controller/pkg/signature"
 	"github.com/crossplane/crossplane/internal/features"
 )
 
 // Setup package controllers.
-func Setup(mgr ctrl.Manager, o controller.Options) error {
+func Setup(_ ctrl.Manager, o controller.Options) error {
 	setupFuncs := []func(ctrl.Manager, controller.Options) error{
 		manager.SetupConfiguration,
 		manager.SetupProvider,
@@ -40,18 +41,19 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		revision.SetupFunctionRevision,
 	}
 
+	if o.PackageRuntime == controller.PackageRuntimeDeployment {
+		setupFuncs = append(setupFuncs, []func(c ctrl.Manager, options controller.Options) error{
+			runtime.SetupProviderRevision,
+			runtime.SetupFunctionRevision,
+		}...)
+	}
+
 	if o.Features.Enabled(features.EnableAlphaSignatureVerification) {
 		setupFuncs = append(setupFuncs, []func(c ctrl.Manager, options controller.Options) error{
 			signature.SetupProviderRevision,
 			signature.SetupConfigurationRevision,
 			signature.SetupFunctionRevision,
 		}...)
-	}
-
-	for _, setup := range setupFuncs {
-		if err := setup(mgr, o); err != nil {
-			return err
-		}
 	}
 
 	return nil
